@@ -50,7 +50,8 @@
 | **`02_Plan_Modelo_Conceptual_DES_y_Teoria_Colas.md`** | 3.6 Modelo Conceptual DES, 3.7 Análisis analítico con Teoría de Colas                                                                                | R4, R5               | **LISTO PARA REDACTAR (Diseño cerrado)**         |
 | **`03_Plan_Parametros_Metricas_Diseno_POO.md`**       | 3.8 Parámetros & plan de datos, 3.9 KPIs, 3.10 Clases POO (Strategy)                                                                                   | R6, R7, R9 (parcial) | **LISTO PARA REDACTAR (Diseño cerrado)**         |
 | **`04_Plan_Hoja_Ruta_Riesgos_Referencias.md`**        | 3.11 Integración & riesgos, 3.12 Referencias IEEE/APA & Anexo IA                                                                                       | R9, R10              | **LISTO PARA REDACTAR (Diseño cerrado)**         |
-| **`05_Plan_Prototipo_Tecnico_y_Simulacion.md`**       | 4. Prototipo técnico: API REST (Docker + Postgres), Telemetría, SimPy v0, Contraste$M/M/c$, Locust (Bono)                                           | R8, Bono (+0.2)      | **LISTO PARA IMPLEMENTAR**                        |
+| **`05_Plan_Prototipo_Tecnico_y_Simulacion.md`**       | 4. Prototipo técnico: API REST (Docker + Postgres), Telemetría, SimPy v0, Contraste $M/M/c$, Locust (Bono)                                           | R8, Bono (+0.2)      | **LISTO PARA IMPLEMENTAR**                        |
+| **`06_Plan_Implementacion_API_FastAPI_Locust.md`**   | 4. API REST FastAPI, PostgreSQL 15, Telemetría, requirements.txt, Docker Compose y Locust (Bono +0.2) - Integrante 2                                  | C1, C2, R8, Bono     | **LISTO PARA IMPLEMENTAR**                        |
 
 ### 2.1 Archivo Maestro de Auditoría, Decisiones y Rúbrica (`docs/Auditoria.md`)
 
