@@ -52,6 +52,16 @@ class KDSOrderResponseSchema(BaseModel):
         from_attributes = True
 
 
+class OrderReadyResponseSchema(BaseModel):
+    id: int
+    status: str
+    t_listo: Optional[datetime] = None
+    is_urgent: bool = True
+
+    class Config:
+        from_attributes = True
+
+
 # ---------------------------------------------------------
 # Esquemas para Repartidores (Couriers)
 # ---------------------------------------------------------
