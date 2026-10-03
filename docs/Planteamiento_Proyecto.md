@@ -1,3 +1,35 @@
+### 3.7 Formulación Analítica de Teoría de Colas ($M/M/c$) y Justificación de la Simulación
+
+Para establecer una línea base de comparación matemática, el subsistema de despacho de repartidores se modela teóricamente como una cola multicanal markoviana $M/M/c$. Este modelo asume llegadas de pedidos exponenciales con tasa $\lambda$, tiempos de servicio exponenciales con tasa $\mu$, y una flota homogénea de $c$ servidores (repartidores).
+
+Las métricas en estado estable se rigen por las siguientes ecuaciones cerradas, condicionadas a la estabilidad del sistema donde el factor de utilización es $\rho = \frac{\lambda}{c \mu} < 1$:
+
+1. Probabilidad de sistema vacío ($P_0$):
+
+   $$P_0 = \left[ \sum_{n=0}^{c-1} \frac{(c\rho)^n}{n!} + \frac{(c\rho)^c}{c!(1-\rho)} \right]^{-1}$$
+
+2. Probabilidad de espera (Fórmula C de Erlang, $P_w$):
+
+   $$P_w = \frac{(c\rho)^c}{c!(1-\rho)} P_0$$
+
+3. Longitud y tiempos de espera (Ley de Little):
+
+   El número promedio de pedidos esperando en cola ($L_q$) se define como:
+
+   $$L_q = \frac{P_w \cdot \rho}{1 - \rho}$$
+
+   Aplicando la Ley de Little ($L = \lambda W$ y $L_q = \lambda W_q$), derivamos los tiempos medios:
+
+   * **Tiempo en cola:** $W_q = \frac{L_q}{\lambda}$
+   * **Tiempo total en el sistema:** $W = W_q + \frac{1}{\mu}$
+   * **Inventario total:** $L = \lambda W$
+
+**Explicación de la Disparidad:** Aunque el modelo $M/M/c$ ofrece una cota teórica perfecta, fracasa al intentar capturar la dinámica operativa real de la plataforma en la ciudad por tres razones fundamentales:
+
+1. **Violación de Estacionariedad ($\rho > 1$):** El modelo analítico exige colas estables. En nuestro entorno real, las ráfagas no estacionarias (NHPP) provocan saturaciones del $106\%$ en el almuerzo y $130\%$ en la cena, lo que matemáticamente colapsaría la fórmula de Erlang hacia el infinito, mientras que en la realidad genera colas finitas con abandonos.
+2. **Distribuciones no exponenciales:** Los tiempos de cocción reales siguen una distribución Log-Normal y las rutas están penalizadas por un factor de sinuosidad vial ($\tau = 1.25$). Estas variables carecen de la propiedad de pérdida de memoria (*memoryless*), invalidando el supuesto markoviano.
+3. **Comportamiento adaptativo y límites físicos:** La teoría clásica asume clientes con paciencia infinita y servidores inagotables. Nuestro gemelo digital en SimPy incorpora la tolerancia límite del cliente (curva Weibull), el agotamiento de la batería de los móviles y el límite duro de fatiga psicomotriz de 6 horas de los repartidores.
+
 ### 3.8 Parámetros, Distribuciones y Plan de Recolección de Datos
 
 Para garantizar la fidelidad estocástica del gemelo digital y evitar las limitaciones de la distribución exponencial plana, el modelo adopta las siguientes distribuciones:
