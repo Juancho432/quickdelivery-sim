@@ -131,3 +131,47 @@ classDiagram
     SurrogateModel ..> SimpyEngine : bounds physical limits
     MesaAgentBridge ..> Courier : converts to ABM Agent
 ```
+
+### 3.11 Hoja de Ruta de Integración y Riesgos
+
+El proyecto está concebido como una arquitectura evolutiva. Hoja de ruta para su integración con los módulos de la asignatura y otras materias del plan de estudios.
+
+**Integración con Módulos del Curso**
+
+| Módulo | Entregable / Componente a Desarrollar | Entrega |
+| :--- | :--- | :---: |
+| **Módulo II** | Pruebas de estrés de la API REST usando Locust para capturar telemetría empírica bajo carga (simulación del pico de cena). | Entrega 2 |
+| **Módulo III** | Ajuste de distribuciones (KS) y estimación bayesiana con PyMC para calibrar los parámetros de las colas de cocina y fatiga. | Entrega 2 |
+| **Módulo IV** | Transición de los repartidores a agentes autónomos (ABM con Mesa) y optimización de la política algorítmica mediante aprendizaje por refuerzo. | Final |
+
+**Integración con Otras Asignaturas**
+
+* **Arquitectura de Software:** Implementación del patrón de diseño *Strategy* para desacoplar las políticas de despacho, y diseño de la API REST bajo el patrón *MVC* (Model-View-Controller) en FastAPI.
+* **Bases de Datos:** Uso de bases de datos relacionales (PostgreSQL) para la persistencia transaccional del estado de los pedidos y la telemetría de los repartidores.
+* **DevOps / Infraestructura:** Despliegue de los entornos de simulación y la API real mediante contenedores aislados orquestados con Docker Compose.
+
+**Matriz de Riesgos Técnicos**
+
+| Riesgo Técnico | Probabilidad | Impacto | Plan de Contingencia |
+| :--- | :---: | :---: | :--- |
+| **1. Colapso de la API REST durante pruebas Locust** | Alta | Alto | Limitar la concurrencia progresivamente y escalar el número de *workers* de Uvicorn en Docker para balancear la carga. |
+| **2. Error analítico > 5% entre M/M/c y SimPy** | Media | Alto | Incrementar el número de réplicas en SimPy (\(N > 100\)) y verificar el calentamiento del sistema (*warm-up period*). |
+| **3. Bloqueo (*deadlock*) de entidades en SimPy** | Baja | Crítico | Implementar *timeouts* de seguridad (abandono) y trazas de depuración (logs) en la cola de cocina. |
+| **4. Asincronía de telemetría en el sistema real** | Media | Medio | Emplear *middlewares* no bloqueantes en FastAPI y delegar la escritura del CSV a procesos en segundo plano. |
+
+### 3.12 Referencias y Anexos
+
+**Referencias Bibliográficas**
+
+1. Alnaggar, A., Gzara, F., & Bookbinder, J. H. (2021). "Crowdsourced delivery: A review of platforms and academic literature." *Omega*, 98, 102139.
+2. Bai, J., Chen, X., & Wang, Y. (2019). "On-demand food delivery with dynamic dispatching and routing." *Manufacturing & Service Operations Management*, 21(3), 566-583.
+3. Boeing, G. (2019). "Street network models and indicators for every urban area in the world." *Geographical Analysis*, 53(1), 51-71.
+4. Dablanc, L., Morganti, E., Arvidsson, N., Woxenius, J., Browne, M., & Saidi, N. (2018). "The rise of on-demand 'Gig Economy' logistics." *Cities*, 87, 85-98.
+5. DoorDash Engineering. (2020). *Predicting Food Preparation Time with Machine Learning*. Recuperado de la documentación técnica oficial de DoorDash.
+
+**Anexo: Declaración de Uso de Inteligencia Artificial**
+Para el desarrollo de este documento, el equipo empleó un modelo de lenguaje (LLM) operando como asistente técnico bajo la dirección del Integrante 3 (Responsable de Análisis de Datos).
+
+* **Herramienta:** Gemini.
+* **Uso específico:** Generación de sintaxis Markdown/LaTeX, estructuración de diagramas UML en formato Mermaid, y validación de las ecuaciones teóricas de Erlang-C de la sección 3.7.
+* **Verificación:** Todo el texto generado fue revisado estocástica y lógicamente por el equipo, garantizando que el diseño del simulador y las variables aleatorias cumplen estrictamente con las directrices del proyecto.
