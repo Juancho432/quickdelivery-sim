@@ -67,12 +67,16 @@ Para el desarrollo de este proyecto, el equipo empleó un modelo de lenguaje (LL
 
 * **Herramienta:** Gemini.
 * **Uso específico:**
-  * Soporte en la estructuración de los documentos Markdown y planes de acción.
-  * Generación de sintaxis LaTeX.
-  * Diseño de diagramas UML en formato Mermaid.
-  * Validación de las ecuaciones teóricas de Erlang-C.
-  * Generar plantillas base y estructuras algorítmicas en Python tanto para el motor de simulación (SimPy) y la API REST (FastAPI), como para los scripts de análisis matemático y recolección de métricas (`queueing_theory.py`, `metrics.py`, `contrast_analysis.py`).
-* **Verificación:** Todo el texto documentado y el código generado fue auditado, y revisado lógica y matemáticamente por los integrantes del equipo, garantizando que la arquitectura del software, las variables aleatorias y el diseño del simulador cumplen estrictamente con las directrices de la asignatura.
+  * **Por parte del Integrante 3:**
+    * Soporte en la estructuración de los documentos Markdown y planes de acción.
+    * Generación de sintaxis LaTeX y diseño de diagramas UML en formato Mermaid.
+    * Validación de las ecuaciones teóricas de Erlang-C.
+    * Generación de plantillas base y estructuras algorítmicas en Python para la API REST (FastAPI) y scripts de análisis matemático (`queueing_theory.py`, `metrics.py`, `contrast_analysis.py`).
+  * **Por el Integrante 1:**
+    * Generación de código estructural en Python aplicando POO y tipado estático para el orquestador de simulación (`simulacion/entities.py`, `simulacion/policies.py`, `simulacion/simpy_engine.py`).
+    * Redacción de documentación técnica, tabla de eventos atómicos y diagrama de flujo Mermaid para el ciclo de vida del pedido (Sección 3.6).
+* **Verificación:** 
+   Todo el texto documentado y el código generado fue auditado, y revisado lógica y matemáticamente por los integrantes del equipo, garantizando que la arquitectura del software, las variables aleatorias y el diseño cumplen estrictamente con las directrices de la asignatura.
 
 ---
 
