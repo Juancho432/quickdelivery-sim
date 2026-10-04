@@ -1,6 +1,6 @@
 ### 3.7 Formulación Analítica de Teoría de Colas ($M/M/c$) y Justificación de la Simulación
 
-Para establecer una línea base de comparación matemática, el subsistema de despacho de repartidores se modela teóricamente como una cola multicanal markoviana $M/M/c$. Este modelo asume llegadas de pedidos exponenciales con tasa $\lambda$, tiempos de servicio exponenciales con tasa $\mu$, y una flota homogénea de $c$ servidores (repartidores).
+Para establecer una línea base de comparación matemática, el subsistema de despacho de repartidores se modela teóricamente como una cola multicanal markoviana $M/M/c$. Este modelo asume llegadas de pedidos exponenciales con tasa $\lambda$, tiempos de servicio exponenciales con tasa $\mu$, y una flota homogénea de $c$ servidores, que son los repartidores.
 
 Las métricas en estado estable se rigen por las siguientes ecuaciones cerradas, condicionadas a la estabilidad del sistema donde el factor de utilización es $\rho = \frac{\lambda}{c \mu} < 1$:
 
@@ -170,8 +170,8 @@ El proyecto está concebido como una arquitectura evolutiva. Hoja de ruta para s
 5. DoorDash Engineering. (2020). *Predicting Food Preparation Time with Machine Learning*. Recuperado de la documentación técnica oficial de DoorDash.
 
 **Anexo: Declaración de Uso de Inteligencia Artificial**
-Para el desarrollo de este documento, el equipo empleó un modelo de lenguaje (LLM) operando como asistente técnico bajo la dirección del Integrante 3 (Responsable de Análisis de Datos).
+Para el desarrollo de este proyecto, el equipo empleó un modelo de lenguaje (LLM) operando como asistente técnico.
 
 * **Herramienta:** Gemini.
-* **Uso específico:** Generación de sintaxis Markdown/LaTeX, estructuración de diagramas UML en formato Mermaid, y validación de las ecuaciones teóricas de Erlang-C de la sección 3.7.
-* **Verificación:** Todo el texto generado fue revisado estocástica y lógicamente por el equipo, garantizando que el diseño del simulador y las variables aleatorias cumplen estrictamente con las directrices del proyecto.
+* **Uso específico:** Soporte en la estructuración de los documentos Markdown y planes de acción, generación de sintaxis LaTeX, diseño de diagramas UML en formato Mermaid, y validación de las ecuaciones teóricas de Erlang-C. Adicionalmente, se utilizó para generar plantillas base y estructuras algorítmicas en Python tanto para el motor de simulación (SimPy) y la API REST (FastAPI), como para los scripts de análisis matemático y recolección de métricas (`queueing_theory.py`, `metrics.py`, `contrast_analysis.py`).
+* **Verificación:** Todo el texto documentado y el código generado fue auditado, revisado lógica y matemáticamente por el equipo, garantizando que el diseño del simulador, el cálculo de percentiles y las variables aleatorias cumplen estrictamente con las directrices del proyecto.
