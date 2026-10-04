@@ -35,7 +35,7 @@ Formalizar las bases conceptuales, operativas y de negocio del sistema de **Plat
   4. *Empírico vs. Mecanístico:* **Mecanístico**, dado que modela explícitamente las leyes de balance de flujo, colas de espera y relaciones de causa-efecto del sistema, complementado con ajustes empíricos obtenidos de telemetría real.
 * **Tabla de Cumplimiento de Criterios C1–C7:**
   * **C1 (Contención por recursos finitos):** Contención por repartidores activos conectados ($c(t)$ limitado), capacidad de cocina ($k$ fogones simultáneos) y conexiones concurrentes a la API.
-  * **C2 (Sistema real mínimo desplegable):** API REST modular en FastAPI corriendo en Docker con $\ge 3$ endpoints propios (`POST /orders`, `GET /restaurants/{id}/orders`, `POST /orders/{id}/ready`, `POST /dispatch/assign`, `GET /orders/{id}/tracking`) y persistencia.
+  * **C2 (Sistema real mínimo desplegable):** API REST modular en FastAPI corriendo en Docker Compose (`postgres:15-alpine` + `api`) con **13 endpoints propios** categorizados por actor (Clientes, KDS Restaurantes, Repartidores, Configuración y Telemetría/Salud) y persistencia relacional con PostgreSQL 15.
   * **C3 (Al menos 3 etapas de servicio y regla de prioridad):**
     * *Etapas de servicio:* (1) Recepción y Validación del Pedido, (2) Preparación en Cocina y Asignación de Repartidor, (3) Tránsito y Entrega con Rastreo.
     * *Regla de prioridad explícita:* Prioridad dinámica anti-abandono (los pedidos reasignados por rechazo o con mayor tiempo acumulado en cola reciben prioridad estricta sobre nuevas órdenes entrantes para evitar cancelaciones).

@@ -48,7 +48,7 @@ Formalizar el modelo conceptual de Simulación de Eventos Discretos (DES) que go
     * Capacidad: 10 restaurantes independientes con $k_r \in [3, 6]$ fogones simultáneos (`simpy.Resource(capacity=k_r)`), sumando **47 fogones en toda la red**. Capacidad nominal: $\lambda_{\text{cocina\_max}} = 2.54\text{ ped/min}$.
     * Disciplina: FIFO por restaurante.
   * *Recurso 3: Servidor API REST y Base de Datos (`APIWorkers` & `PostgresPool`)*
-    * Capacidad: Workers HTTP concurrentes y pool de conexiones en Docker Compose.
+    * Capacidad: Workers HTTP concurrentes de Uvicorn y pool de conexiones `QueuePool` en Docker Compose (`api` + `db: postgres:15-alpine`), atendiendo el catálogo de 13 endpoints transaccionales y telemetría atómica continua.
 * **Paso 3: Variables de Estado del Sistema:**
   * $N_{ped}(t)$: Número total de pedidos activos en la plataforma en el instante $t$.
   * $Q_{cocina}(t)$: Número de pedidos esperando o en preparación en los 10 restaurantes.

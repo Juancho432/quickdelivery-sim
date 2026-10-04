@@ -1,0 +1,640 @@
+=== PAGE 1 ===
+ 
+Proyecto de Aula — Entrega Parcial 1: Planteamiento del Proyecto 
+1. Propósito del Proyecto de Aula 
+El PA consiste en construir, a lo largo del semestre, un gemelo digital básico de un sistema de software 
+real: un simulador estocástico que reproduce el comportamiento de un sistema que el propio grupo 
+construye o despliega, y que sirve para tomar una decisión de ingeniería respaldada con métricas. 
+El proyecto integra los cuatro módulos del curso y, en la medida de lo posible, conocimientos de otros 
+cursos de la carrera (arquitectura de software, bases de datos, redes, sistemas distribuidos, DevOps, 
+inteligencia artificial, estadística). Por eso el sistema se elige una sola vez, en esta entrega, y debe poder 
+crecer hasta la entrega final. 
+ 
+ 
+Entrega Semanas Qué debe existir al cerrar la 
+entrega 
+Entrega 1 (10%) 1–7 Problema delimitado, modelo 
+conceptual DES, análisis con 
+teoría de colas, modelo SimPy 
+versión 0, API del sistema real 
+corriendo en contenedor 
+Entrega 2 (10%) 8–12 Telemetría del sistema real bajo 
+carga (Locust), ajuste y 
+validación de distribuciones 
+(KS), estimación bayesiana de 
+parámetros (PyMC), modelo 
+subrogado o predictor híbrido 
+que respete límites físicos 
+Entrega final (20%) 13–16 Componente multiagente 
+(Mesa), integración DES + ABM 
++ ML, agente de decisión (p. ej. 
+aprendizaje por refuerzo o 
+política optimizada), 
+demostración en vivo del 
+
+
+=== PAGE 2 ===
+ 
+Entrega Semanas Qué debe existir al cerrar la 
+entrega 
+simulador emparejado con el 
+sistema real y sustentación 
+La pregunta que guía todo el proyecto es: ¿qué decisión de ingeniería sobre este sistema puede 
+tomarse mejor gracias al simulador, y con qué evidencia? 
+2. Delimitación: qué sistema se puede elegir 
+El sistema elegido debe cumplir los siete criterios de elegibilidad; un sistema que incumpla cualquiera de 
+ellos no será aprobado y el grupo deberá replantearlo. 
+# Criterio Por qué se exige Cómo se demuestra en 
+la entrega 
+C1 Es un sistema de software o de 
+infraestructura TI con 
+contención por recursos finitos 
+(CPU, hilos, conexiones, 
+memoria, ancho de banda, 
+nodos, workers) 
+Es la base del modelado DES 
+y de la teoría de colas 
+(Módulo I) 
+Identificación explícita 
+de recursos y colas 
+C2 El grupo puede construir o 
+desplegar una versión mínima 
+real del sistema: una API REST 
+en un contenedor, con al 
+menos 2 servicios o 
+componentes 
+Sin sistema real no hay 
+pruebas de carga (Módulo II) 
+ni gemelo emparejado 
+(entrega final) 
+API corriendo y 
+evidenciada en el 
+repositorio 
+C3 Tiene al menos 3 etapas de 
+servicio en serie o en red y al 
+menos 2 tipos de entidad o 
+una regla de prioridad 
+Evita modelos triviales de 
+una sola cola 
+Diagrama de flujo del 
+paso 6 
+C4 Tiene una variable de decisión 
+o política controlable (tamaño 
+de pool, número de réplicas, 
+regla de autoescalado, 
+prioridad, enrutamiento, 
+tamaño de lote) 
+El simulador debe apoyar una 
+decisión, no solo describir 
+Preguntas de decisión 
+con política actual vs. 
+alternativa 
+C5 Presenta llegadas no 
+estacionarias (picos, 
+estacionalidad, ráfagas) 
+Motiva pruebas de estrés, 
+patrones estacionales en 
+Locust y análisis de salidas 
+Supuesto de llegadas 
+justificado 
+
+=== PAGE 3 ===
+ 
+# Criterio Por qué se exige Cómo se demuestra en 
+la entrega 
+C6 Tiene al menos un límite físico 
+o duro medible (saturación de 
+CPU, ancho de banda máximo, 
+temperatura, batería, límite de 
+conexiones) 
+Se usará en el predictor 
+híbrido tipo PINN (semana 
+12) 
+Límite identificado con 
+su valor aproximado y 
+fuente 
+C7 Tiene actores autónomos que 
+pueden modelarse como 
+agentes (usuarios con 
+comportamiento adaptativo, 
+nodos, bots, dispositivos) 
+Se usará en el componente 
+ABM con Mesa (semanas 13–
+14) 
+Descripción breve de 
+los agentes previstos 
+2.1 Temas sugeridos 
+Los siguientes temas cumplen los siete criterios si se delimitan bien. Cada grupo puede proponer uno 
+propio, siempre que justifique C1–C7. 
+Tema Variable de decisión 
+típica 
+Límite duro (C6) Agentes (C7) 
+Plataforma de 
+matrícula académica 
+en picos de inscripción 
+Réplicas de la API y 
+tamaño del pool de 
+base de datos 
+Conexiones máximas 
+de la base de datos 
+Estudiantes que 
+reintentan o 
+abandonan 
+Comercio electrónico 
+con microservicios 
+(catálogo, carrito, 
+pagos) en días de 
+descuento 
+Regla de autoescalado 
+y timeouts 
+CPU por nodo Compradores con 
+abandono de carrito 
+Cola de compilación 
+CI/CD con runners 
+compartidos 
+Número de runners y 
+prioridad por rama 
+Memoria por runner Desarrolladores que 
+lanzan builds 
+Ingesta de telemetría 
+IoT con broker de 
+mensajes 
+Número de 
+consumidores y 
+tamaño de lote 
+Ancho de banda del 
+enlace 
+Sensores con fallas 
+intermitentes 
+Planificador de trabajos 
+en un clúster HPC 
+Política de planificación 
+(FIFO, backfilling, 
+prioridad) 
+Temperatura / 
+estrangulamiento 
+térmico 
+Usuarios que reenvían 
+trabajos 
+
+=== PAGE 4 ===
+ 
+Tema Variable de decisión 
+típica 
+Límite duro (C6) Agentes (C7) 
+Sistema de 
+agendamiento de citas 
+médicas vía API 
+Capacidad por franja y 
+política de sobrecupo 
+Límite de peticiones 
+por segundo 
+Pacientes que cancelan 
+o reprograman 
+Plataforma de pedidos 
+a domicilio (pedidos, 
+asignación, rastreo) 
+Regla de asignación de 
+repartidores 
+Batería de dispositivos 
+o latencia de red 
+Repartidores y clientes 
+2.2 Temas no admitidos 
+• Sistemas sin componente de software propio: colas de personas en bancos, peajes, 
+supermercados o restaurantes sin API ni infraestructura TI. 
+• Sistemas que el grupo no puede instanciar ni en versión mínima (por ejemplo, "la red de 
+Netflix"), salvo que se delimite un subsistema construible. 
+• Dos grupos con el mismo tema y la misma variable de decisión: el tema se asigna por orden de 
+registro. 
+2.3 Nivel de delimitación esperado 
+El alcance debe responder con precisión: qué subsistema se modela, qué queda fuera y por qué, cuál es 
+el horizonte de simulación (p. ej. una jornada de 8 h de inscripciones), cuál es la unidad de tiempo del 
+modelo y qué nivel de detalle se adopta. Un planteamiento que intente modelar "todo el sistema" se 
+califica como insuficiente en el criterio de alcance. 
+3. Contenido obligatorio del documento 
+El documento tiene doce secciones en este orden; cada una indica qué se espera y cuál es el error más 
+frecuente que debe evitarse. 
+3.1 Identificación 
+Nombre del proyecto, integrantes con código y correo, rol principal de cada integrante (modelado, 
+infraestructura, análisis de datos) y enlace al repositorio (GitHub por ejemplo). 
+3.2 Descripción del sistema objeto de estudio 
+• Contexto: qué hace el sistema, quién lo usa y quién tomaría la decisión. 
+• Arquitectura del sistema real mínimo: diagrama de componentes o despliegue (servicios, base 
+de datos, broker, balanceador). 
+• Clasificación del modelo según la taxonomía vista en clase: discreto/continuo, 
+estático/dinámico, determinista/estocástico, empírico/mecanístico, con una línea de 
+justificación por dimensión. 
+• Tabla de cumplimiento de los criterios C1–C7 de la sección 2. 
+
+=== PAGE 5 ===
+ 
+Error frecuente: describir la tecnología en lugar del comportamiento. Importa qué fluye, qué espera y 
+qué se satura. 
+3.3 Problema y preguntas de decisión 
+• Enunciado del problema en máximo un párrafo. 
+• Entre 2 y 4 preguntas de decisión cuantificables, cada una con la política actual y al menos una 
+alternativa. Ejemplo: "¿Con cuántas réplicas del servicio de matrícula se mantiene el percentil 95 
+del tiempo de respuesta por debajo de 2 s durante el pico de las 8:00, y cuánto cuesta cada 
+réplica adicional?" 
+Error frecuente: preguntas descriptivas ("¿cómo funciona el sistema?") que no llevan a ninguna decisión. 
+3.4 Objetivos 
+Un objetivo general y de 2 a 4 objetivos específicos, verificables y con verbo medible. Deben cubrir las 
+tres entregas, no solo esta. 
+3.5 Alcance, delimitación y supuestos iniciales 
+• Qué está dentro y qué está fuera del modelo, con la razón de cada exclusión. 
+• Horizonte de simulación, unidad de tiempo y condiciones iniciales (vacío y ocioso, o con 
+calentamiento). 
+• Tabla de supuestos: supuesto, justificación, fuente o evidencia, e impacto si resulta falso. 
+3.6 Modelo conceptual DES (pasos 1–6 de la metodología) 
+• Entidades con sus atributos (tipo, prioridad, tamaño, marca de llegada). 
+• Recursos con su capacidad y disciplina de cola (FIFO, prioridad, prioridad con expropiación). 
+• Eventos que cambian el estado y variables de estado del sistema. 
+• Diagrama de flujo del proceso con bifurcaciones, reprocesos, abandonos y reintentos. 
+• Tabla que relacione cada evento con las variables de estado que modifica. 
+Error frecuente: confundir entidades con recursos, o listar eventos que no cambian el estado. 
+3.7 Análisis analítico preliminar con teoría de colas 
+• Identificar al menos un subsistema que pueda aproximarse como M/M/1 o M/M/c. 
+• Con parámetros supuestos y justificados, calcular la utilización, el número promedio en cola y en 
+el sistema, y los tiempos promedio de espera y de permanencia. Verificar la Ley de Little. 
+• Identificar el cuello de botella teórico y la capacidad máxima sostenible. 
+• Explicar qué supuestos del modelo analítico no se cumplen en el sistema real y por qué eso 
+justifica simular. 
+Las relaciones mínimas que deben usarse son: 
+
+=== PAGE 6 ===
+ 
+ 
+Para M/M/c se usa la fórmula para la probabilidad de espera. Los cálculos pueden hacerse en un 
+notebook, pero el documento debe mostrar el procedimiento y los resultados en una tabla. 
+3.8 Parámetros, distribuciones y plan de datos 
+• Para cada parámetro de entrada: distribución propuesta, valores, fuente (literatura, 
+documentación técnica, datos públicos, medición propia) y justificación. 
+• Plan de recolección de datos para la Entrega 2: qué se medirá en el sistema real (latencias, uso 
+de CPU y memoria, tasas de llegada), con qué herramienta y bajo qué escenario de carga. 
+Error frecuente: usar exponenciales para todo sin justificarlo. Si se usa una exponencial, debe 
+argumentarse. 
+3.9 Métricas de desempeño 
+Entre 4 y 6 métricas definidas antes de programar, cada una con fórmula u operacionalización, unidad, 
+umbral aceptable y la pregunta de decisión que responde. Al menos una debe ser un percentil (p95 o 
+p99), no solo un promedio. 
+3.10 Diseño preliminar de clases POO (paso 8) 
+Diagrama de clases con, como mínimo, entidad, recurso, política (patrón Strategy), simulador 
+orquestador y recolector de estadísticas. Debe mostrar dónde se conectará cada módulo futuro: fuente 
+de datos reales, estimador bayesiano, modelo subrogado y agentes. 
+3.11 Hoja de ruta de integración y riesgos 
+• Tabla de integración: qué componente del proyecto se construirá con cada módulo del curso (III 
+y IV) y en qué entrega. 
+• Relación explícita con al menos un curso de la carrera, indicando qué concepto o producto se 
+reutiliza (p. ej. el modelo entidad-relación de Bases de Datos, los patrones de Arquitectura de 
+Software, el pipeline de DevOps). 
+• Tabla de riesgos: riesgo, probabilidad, impacto y plan de contingencia (mínimo 4 riesgos técnicos 
+o de alcance). 
+3.12 Referencias y anexos 
+• Referencias en formato IEEE o APA, con mínimo 5 fuentes técnicas o académicas; al menos 2 
+deben ser artículos o libros, no solo páginas web. 
+• Anexo de declaración de uso de inteligencia artificial (sección 6). 
+
+
+=== PAGE 7 ===
+ 
+4. Prototipo técnico mínimo y repositorio 
+El repositorio debe demostrar que el entorno de las semanas 1 a 7 funciona; no se exige que el modelo 
+esté calibrado ni que responda aún las preguntas de decisión. 
+Componente Requisito mínimo Evidencia 
+Repositorio Git Público o compartido con el docente, 
+con commits de los  integrantes 
+Historial de commits 
+Entorno reproducible requirements.txt o pyproject.toml 
+con versiones fijadas y Dockerfile o 
+docker-compose.yml 
+Se levanta con un solo comando 
+documentado en el README 
+Sistema real mínimo API REST con al menos 2 servicios o 
+componentes (p. ej. API + base de datos) 
+y al menos 3 endpoints propios del caso 
+Captura o registro de peticiones 
+exitosas 
+Telemetría base Registro de tiempos de respuesta por 
+petición y lectura de CPU y memoria en 
+reposo y con peticiones simples 
+Archivo de log o CSV en el 
+repositorio 
+Modelo DES versión 0 Modelo en SimPy con las entidades, 
+recursos y etapas del diagrama de flujo, 
+parámetros de la sección 4.8, semilla fija 
+y salida de al menos 2 métricas de 
+desempeño 
+Notebook o script ejecutable de 
+punta a punta 
+Contraste analítico Comparar la salida del modelo SimPy, 
+con llegadas y servicios exponenciales, 
+contra el resultado M/M/c de la sección 
+3.7 
+Tabla con la diferencia 
+porcentual y su explicación 
+README Descripción, arquitectura, instrucciones 
+de ejecución y estructura de carpetas 
+Archivo README.md 
+Estructura de carpetas sugerida: 
+proyecto-aula/ 
+├── README.md 
+├── docker-compose.yml 
+├── requirements.txt 
+├── sistema_real/        # API y servicios 
+├── simulacion/          # modelo SimPy, clases POO 
+├── analisis/            # notebooks de teoría de colas y contraste 
+├── datos/               # logs y telemetría 
+└── docs/                # documento de planteamiento y diagramas 
+Bono opcional (hasta +0.2): un locustfile.py con una prueba de humo contra la API (al menos 2 tipos 
+de usuario y un reporte de RPS y percentiles). La nota final de la entrega no supera 5.0. 
+
+=== PAGE 8 ===
+ 
+5. Formato, reglas de entrega e integridad académica 
+Se entrega un único PDF de máximo 10 páginas (sin contar anexos ni referencias) más el enlace al 
+repositorio. 
+5.1 Formato 
+• Nombre del archivo: PA_E1_Grupo<N>_<NombreProyecto>.pdf. 
+• Letra de 11 o 12 puntos, interlineado 1.15, figuras y tablas numeradas y citadas en el texto. 
+• Los diagramas pueden hacerse a mano o con herramientas digitales, siempre que sean legibles. 
+• El PDF debe contener el enlace al repositorio en la portada, y el repositorio una copia del PDF en 
+docs/. 
+5.2 Revisión en clase 
+El día de la entrega se podrán hacer preguntas a cualquier integrante sobre cualquier sección. Si un 
+integrante no puede explicar una parte del trabajo, su nota individual puede reducirse hasta en 1.0 
+respecto a la nota grupal. 
+5.3 Uso de inteligencia artificial 
+Se permite usar herramientas de IA como apoyo, con declaración obligatoria en un anexo que indique: 
+herramienta, para qué se usó, en qué secciones, y qué verificó o modificó el grupo. No declarar el uso de 
+IA, o no poder sustentar una decisión presentada como propia, se tratará como fraude académico. 
+5.4 Penalizaciones 
+Situación Consecuencia 
+Entrega tarde −1.0 por cada día calendario; después de 2 días 
+no se recibe 
+Repositorio inaccesible el día de la entrega Criterio R8 calificado con 0.0 
+El prototipo no se ejecuta con las instrucciones 
+del README 
+Criterio R8 con máximo 50% de su peso 
+Tema no aprobado por incumplir los criterios C1–
+C7 
+Replanteamiento obligatorio en 5 días hábiles, 
+con nota máxima de 3.5 
+Plagio o fraude Según reglamento estudiantil 
+6. Rúbrica de calificación 
+La nota de la entrega es la suma de los diez criterios (máximo 5.0), más el bono opcional de la sección 5, 
+sin superar 5.0. Cada criterio se califica en uno de cuatro niveles, que equivalen a un porcentaje de su 
+peso. 
+
+=== PAGE 9 ===
+ 
+Criterio Pes
+o 
+Sobresaliente (100%) Satisfactorio 
+(75%) 
+En desarrollo 
+(50%) 
+Insuficiente 
+(0–25%) 
+R1. Sistema y 
+elegibilidad 
+0.3 Sistema claro, con 
+arquitectura, clasificación 
+taxonómica justificada y 
+los 7 criterios C1–C7 
+demostrados con 
+evidencia 
+Cumple C1–
+C7, pero una 
+justificación es 
+débil o la 
+clasificación 
+está 
+incompleta 
+Uno o dos 
+criterios C1–
+C7 sin 
+demostrar 
+Sistema 
+ambiguo o 
+incumple tres 
+o más criterios 
+R2. Problema, 
+preguntas de 
+decisión y 
+objetivos 
+0.6 2–4 preguntas 
+cuantificables con política 
+actual vs. alternativa; 
+objetivos verificables que 
+cubren las tres entregas 
+Preguntas 
+cuantificables, 
+pero alguna 
+sin alternativa 
+explícita u 
+objetivos poco 
+medibles 
+Preguntas 
+parcialmente 
+descriptivas; 
+objetivos 
+genéricos 
+No hay 
+preguntas de 
+decisión o son 
+puramente 
+descriptivas 
+R3. Alcance, 
+delimitación y 
+supuestos 
+0.5 Dentro/fuera con razones, 
+horizonte, unidad de 
+tiempo y condiciones 
+iniciales; cada supuesto 
+con justificación, fuente e 
+impacto 
+Alcance claro; 
+algunos 
+supuestos sin 
+fuente o sin 
+impacto 
+Alcance vago o 
+sin horizonte; 
+supuestos 
+listados sin 
+justificar 
+Pretende 
+modelar todo 
+el sistema o no 
+declara 
+supuestos 
+R4. Modelo 
+conceptual 
+DES 
+0.8 Entidades, recursos, 
+eventos y estado 
+correctos y completos; 
+diagrama de flujo con 
+bifurcaciones, reprocesos 
+y abandonos; tabla 
+evento–estado coherente 
+Modelo 
+correcto con 
+omisiones 
+menores en 
+eventos o en 
+el diagrama 
+Confusiones 
+puntuales 
+entre entidad, 
+recurso y 
+evento, o 
+diagrama 
+incompleto 
+Modelo 
+incorrecto, 
+incoherente o 
+ausente 
+R5. Análisis 
+con teoría de 
+colas 
+0.6 Subsistema M/M/1 o 
+M/M/c bien elegido, 
+cálculos correctos, Ley de 
+Little verificada, cuello de 
+botella identificado y 
+límites del modelo 
+analítico discutidos 
+Cálculos 
+correctos, 
+pero discusión 
+de límites o 
+cuello de 
+botella 
+superficial 
+Errores de 
+cálculo 
+menores o 
+modelo 
+analítico mal 
+elegido 
+Ausente o con 
+errores 
+conceptuales 
+graves (p. ej. ρ 
+≥ 1 sin 
+advertirlo) 
+R6. 
+Parámetros, 
+distribuciones 
+0.4 Cada parámetro con 
+distribución, valor, fuente 
+y justificación; plan de 
+Parámetros 
+justificados, 
+Distribuciones 
+sin justificar o 
+sin fuentes 
+Parámetros 
+arbitrarios o 
+ausentes 
+
+=== PAGE 10 ===
+ 
+Criterio Pes
+o 
+Sobresaliente (100%) Satisfactorio 
+(75%) 
+En desarrollo 
+(50%) 
+Insuficiente 
+(0–25%) 
+y plan de 
+datos 
+medición concreto para la 
+Entrega 2 
+pero plan de 
+datos genérico 
+R7. Métricas 
+de desempeño 
+0.3 4–6 KPI con fórmula, 
+unidad, umbral y 
+pregunta que responden; 
+incluye percentiles 
+KPI bien 
+definidos, 
+pero sin 
+umbral o sin 
+percentiles 
+KPI vagos o no 
+ligados a las 
+preguntas 
+Sin KPI 
+R8. Prototipo 
+técnico y 
+repositorio 
+0.7 Entorno se levanta con un 
+comando; API funcional; 
+telemetría base; modelo 
+SimPy v0 ejecutable; 
+contraste con M/M/c 
+explicado; commits de 
+todos 
+Todo funciona, 
+con fallas 
+menores de 
+documentació
+n o contraste 
+sin explicar 
+Solo funciona 
+una de las dos 
+partes (API o 
+modelo SimPy) 
+No se ejecuta 
+o no existe 
+R9. Diseño de 
+clases, hoja de 
+ruta y riesgos 
+0.5 Diagrama de clases con 
+Strategy y puntos de 
+extensión para Módulos 
+III–IV; integración con 2 
+cursos concreta; 4+ 
+riesgos con contingencia 
+Diseño 
+correcto; 
+integración o 
+riesgos poco 
+concretos 
+Diagrama de 
+clases 
+incompleto o 
+sin hoja de 
+ruta 
+Ausente 
+R10. 
+Presentación, 
+referencias y 
+declaración de 
+IA 
+0.3 Redacción técnica precisa; 
+figuras numeradas; 5+ 
+referencias bien citadas; 
+declaración de IA 
+completa 
+Detalles 
+menores de 
+formato o 
+citas 
+Redacción 
+confusa o 
+menos de 5 
+referencias 
+Sin referencias 
+o sin 
+declaración de 
+IA 
+Total 5.0     
+Por ejemplo, un grupo con nivel satisfactorio en R4 obtiene 0.75 × 0.8 = 0.6 en ese criterio. El docente 
+puede asignar valores intermedios dentro de un nivel cuando el trabajo esté entre dos descriptores. 
+

@@ -50,7 +50,8 @@
 | **`02_Plan_Modelo_Conceptual_DES_y_Teoria_Colas.md`** | 3.6 Modelo Conceptual DES, 3.7 Análisis analítico con Teoría de Colas                                                                                | R4, R5               | **LISTO PARA REDACTAR (Diseño cerrado)**         |
 | **`03_Plan_Parametros_Metricas_Diseno_POO.md`**       | 3.8 Parámetros & plan de datos, 3.9 KPIs, 3.10 Clases POO (Strategy)                                                                                   | R6, R7, R9 (parcial) | **LISTO PARA REDACTAR (Diseño cerrado)**         |
 | **`04_Plan_Hoja_Ruta_Riesgos_Referencias.md`**        | 3.11 Integración & riesgos, 3.12 Referencias IEEE/APA & Anexo IA                                                                                       | R9, R10              | **LISTO PARA REDACTAR (Diseño cerrado)**         |
-| **`05_Plan_Prototipo_Tecnico_y_Simulacion.md`**       | 4. Prototipo técnico: API REST (Docker + Postgres), Telemetría, SimPy v0, Contraste$M/M/c$, Locust (Bono)                                           | R8, Bono (+0.2)      | **LISTO PARA IMPLEMENTAR**                        |
+| **`05_Plan_Prototipo_Tecnico_y_Simulacion.md`**       | 4. Prototipo técnico: API REST (Docker + Postgres), Telemetría, SimPy v0, Contraste $M/M/c$, Locust (Bono)                                           | R8, Bono (+0.2)      | **PARCIALMENTE COMPLETADO (API, Docker, Telemetría y Locust listos; SimPy y Contraste pendientes)** |
+| **`06_Plan_Implementacion_API_FastAPI_Locust.md`**   | 4. API REST FastAPI, PostgreSQL 15, Telemetría, requirements.txt, Docker Compose y Locust (Bono +0.2) - Integrante 2                                  | C1, C2, R8, Bono     | **COMPLETADO (13 endpoints, Docker Compose, Telemetría y Locust verificados)** |
 
 ### 2.1 Archivo Maestro de Auditoría, Decisiones y Rúbrica (`docs/Auditoria.md`)
 
@@ -97,8 +98,9 @@
   - [ ] Diagrama de clases POO con patrón Strategy puro para Opción 1 y puntos de extensión (Módulos II, III y IV).
 - [ ] **Fase 4: Ejecución del Plan 04 (Secciones 3.11 y 3.12):**
   - [ ] Hoja de ruta modular, matriz de 4 riesgos con contingencias D-07/D-08, referencias IEEE/APA y anexo de IA.
-- [ ] **Fase 5: Prototipo Técnico y Simulación (Plan 05):**
-  - [ ] API REST Dockerizada con FastAPI + PostgreSQL 15 y telemetría integrada a `datos/telemetry_log.csv`.
+- [ ] **Fase 5: Prototipo Técnico y Simulación (Plan 05 y Plan 06):**
+  - [X] API REST Dockerizada con FastAPI + PostgreSQL 15 y telemetría integrada a `datos/telemetry_log.csv` (13 endpoints REST implementados y probados).
+  - [X] Suite modular de pruebas unitarias e integración en `tests/` con `TestClient` (34 tests con 100% éxito cubriendo caminos positivos y negativos, desacoplada por clases temáticas y documentada en `docs/Documentacion_Pruebas_Unitarias_y_API.md`).
   - [ ] Modelo SimPy v0 ejecutable de 24h con semilla fija.
   - [ ] Script de contraste numérico $M/M/c$ vs SimPy con error $< 5\%$.
-  - [ ] Bono con Locust (`locustfile.py`) con perfiles Cliente y Repartidor.
+  - [X] Bono con Locust (`locustfile.py`) con 3 perfiles concurrentes (Cliente, Restaurante y Repartidor) y reportes generados con 0% fallos.

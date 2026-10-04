@@ -508,7 +508,7 @@ Para garantizar la máxima calificación en la rúbrica (Criterio R8 con error $
 | Criterio | Exigencia Oficial | Demostración en QuickDelivery Sim |
 | :--- | :--- | :--- |
 | **C1: Contención por recursos finitos** | Sistema TI o software con recursos limitados. | Fogones de cocina ($k_r$), flota conectada ($c(t)$), workers HTTP de la API y conexiones a PostgreSQL. |
-| **C2: Sistema real mínimo desplegable** | API REST en contenedor con $\ge 2$ servicios y $\ge 3$ endpoints. | FastAPI + PostgreSQL en Docker Compose con $\ge 3$ endpoints propios y telemetría continua. |
+| **C2: Sistema real mínimo desplegable** | API REST en contenedor con $\ge 2$ servicios y $\ge 3$ endpoints. | FastAPI + PostgreSQL 15 en Docker Compose con 13 endpoints propios (Clientes, KDS, Couriers, Configuración y Salud) y telemetría continua registrada en `datos/telemetry_log.csv`. |
 | **C3: $\ge 3$ etapas de servicio y regla de prioridad** | Red de colas con $\ge 3$ etapas y regla de prioridad. | 1. Recepción $\rightarrow$ 2. Cocina/Despacho $\rightarrow$ 3. Tránsito/Rastreo. Prioridad urgente anti-enfriamiento en comidas listas. |
 | **C4: Variable de decisión controlable** | Política actual vs. alternativa explícita. | Asignación Voraz Inmediata vs. Despacho Sincronizado Predictivo con oferta simultánea. |
 | **C5: Llegadas no estacionarias** | Picos y estacionalidad horaria. | Jornada de 24 horas gobernada por NHPP con picos de almuerzo ($2.70\text{ ped/min}$) y cena ($3.30\text{ ped/min}$). |

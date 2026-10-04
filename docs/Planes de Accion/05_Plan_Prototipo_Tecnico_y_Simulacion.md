@@ -52,24 +52,24 @@ Modelos - PA/
 ### 3. Componentes Técnicos Detallados
 
 #### 3.1 Sistema Real Mínimo (API REST en FastAPI + PostgreSQL en Docker Compose)
-* **Endpoints Propios del Dominio ($\ge 3$ endpoints):**
-  1. `POST /api/v1/orders/`: Creación y registro de un nuevo pedido (cliente, restaurante y ubicación geodésica de entrega).
-  2. `GET /api/v1/restaurants/{restaurant_id}/orders`: Consulta en tiempo real de comandas activas por la pantalla KDS del local (`order_id`, `status`, `tiempo_espera_cola`, `eta_listo` sin recetas ni ingredientes).
-  3. `POST /api/v1/orders/{order_id}/ready`: Notificación del restaurante vía KDS/Tablet al culminar la cocción y transferir comanda a mostrador (Decisión D-09).
-  4. `POST /api/v1/dispatch/assign/`: Disparo del algoritmo de asignación para emparejar pedidos pendientes con repartidores libres.
-  5. `GET /api/v1/orders/{order_id}/tracking`: Consulta en tiempo real del estado de entrega, repartidor asignado y telemetría de ruta.
-  6. `GET /api/v1/telemetry/health`: Endpoint de diagnóstico que expone métricas instantáneas de CPU, memoria y tiempos de respuesta.
+* **Catálogo de 13 Endpoints Propios del Dominio (Estructurados por Actor):**
+  1. *Clientes:* `POST /api/v1/orders/` (ingesta), `GET /api/v1/orders/{order_id}/tracking` (rastreo), `POST /api/v1/orders/{order_id}/cancel` (cancelación voluntaria).
+  2. *Restaurantes/KDS:* `GET /api/v1/restaurants/{id}/orders` (cola KDS sin ingredientes, Excl-2), `POST /api/v1/orders/{id}/ready` (pase a mostrador D-09, liberación de fogón y promoción FIFO).
+  3. *Repartidores:* `POST /api/v1/couriers/login` (inicio de turno), `POST /api/v1/couriers/{id}/location` (pings GPS), `GET /api/v1/couriers/{id}/offers` (ofertas JIT), `POST /api/v1/orders/{id}/accept` (asignación atómica), `PATCH /api/v1/orders/{id}/status` (hitos de viaje y entrega D-08), `POST /api/v1/couriers/{id}/logout` (cierre de turno).
+  4. *Configuración:* `GET /api/v1/config/` y `PUT /api/v1/config/` (control en tiempo real de políticas y umbrales).
+  5. *DevOps / Salud:* `GET /api/v1/telemetry/health` (diagnóstico de hardware y conectividad PostgreSQL).
 * **Componentes de Infraestructura en `docker-compose.yml` (Decisión D-04):**
-  * Servicio 1 (`api`): Contenedor FastAPI con Uvicorn multi-worker, dependencias en `requirements.txt` y middleware de telemetría.
-  * Servicio 2 (`db`): Contenedor oficial **PostgreSQL 15 (`postgres:15-alpine`)** con volumen persistente montado (`postgres_data`), persistiendo transacciones relacionales e índices.
+  * Servicio 1 (`api`): Contenedor FastAPI con Uvicorn multi-worker, dependencias en `requirements.txt`, healthcheck interno y middleware de telemetría.
+  * Servicio 2 (`db`): Contenedor oficial **PostgreSQL 15 (`postgres:15-alpine`)** con volumen persistente montado (`postgres_data`) y healthcheck activo `pg_isready`.
 
 #### 3.2 Telemetría Base de Rendimiento
 * **Métricas Registradas:**
-  * Tiempo de respuesta por solicitud HTTP ($ms$) registrado mediante middleware asíncrono.
+  * Tiempo de respuesta por solicitud HTTP ($ms$) registrado mediante middleware asíncrono con `time.perf_counter()`.
   * Porcentaje de uso de CPU (`psutil.cpu_percent(interval=None)`).
-  * Consumo de memoria RAM en megabytes (`psutil.virtual_memory().used / 1024**2`).
+  * Consumo de memoria RAM en megabytes (`psutil.Process().memory_info().rss / 1024**2`).
 * **Formato de Exportación:** Archivo continuo `datos/telemetry_log.csv` con columnas:  
   `timestamp, method, path, status_code, latency_ms, cpu_percent, memory_mb`.
+* **Modo de Escritura:** Append atómico con flush inmediato (`buffering=1`) para tolerar alta concurrencia sin corrupción.
 
 #### 3.3 Modelo DES SimPy Versión 0 (Gemelo Digital 24 Horas)
 * **Características Clave:**
@@ -92,18 +92,18 @@ Modelos - PA/
 
 #### 3.5 Bono Opcional: Prueba de Humo con Locust (`locustfile.py`)
 * **Perfiles de Usuario (3 Actores Concurrentes):**
-  * `CustomerUser`: Realiza solicitudes de creación de pedidos (`POST /api/v1/orders/`) y sondea el rastreo (`GET /api/v1/orders/{id}/tracking`).
-  * `RestaurantUser`: Notifica comanda lista en mostrador vía KDS (`POST /api/v1/orders/{id}/ready`, Decisión D-09).
-  * `CourierUser`: Notifica cambios de disponibilidad y solicita asignaciones activas (`POST /api/v1/dispatch/assign/`).
+  * `CustomerUser` (peso 5): Emite solicitudes de creación de pedidos (`POST /api/v1/orders/`), sondea el rastreo (`GET /api/v1/orders/{id}/tracking`) y cancela esporádicamente (`POST /api/v1/orders/{id}/cancel`).
+  * `RestaurantUser` (peso 2): Consulta pantalla KDS (`GET /api/v1/restaurants/{id}/orders`) y notifica comanda lista en mostrador (`POST /api/v1/orders/{id}/ready`, Decisión D-09).
+  * `CourierUser` (peso 3): Inicia turno (`POST /api/v1/couriers/login`), emite pings GPS (escenarios de 5s vs 15s para Pregunta 3), consulta ofertas JIT (`GET /api/v1/couriers/{id}/offers`), acepta de forma concurrente (`POST /api/v1/orders/{id}/accept`) y actualiza estados de viaje (`PATCH /api/v1/orders/{id}/status`).
 * **Reporte de Desempeño:**
-  * Reporte exportado en HTML/CSV mostrando peticiones por segundo (RPS), tasa de fallos ($0\%$) y percentiles de latencia (50%, 90%, 95%, 99%).
+  * Reportes generados en `datos/locust_report.html` y `datos/locust_stats_stats.csv` mostrando peticiones por segundo sostenidas, $0.00\%$ de tasa de errores y percentiles de latencia sub-milimétricos.
 
 ---
 
 ### 4. Criterios de Aceptación y Verificación
-- [ ] Todo el entorno se levanta con un solo comando: `docker compose up --build`.
-- [ ] La API expone al menos 3 endpoints específicos de pedidos a domicilio y responde con código HTTP 200/201.
-- [ ] Se genera un log real en `datos/telemetry_log.csv` con métricas de latencia, CPU y RAM.
+- [X] Todo el entorno se levanta con un solo comando: `docker compose up --build`.
+- [X] La API expone 13 endpoints específicos de pedidos a domicilio y responde con código HTTP 200/201 (supera el mínimo de 3).
+- [X] Se genera un log real en `datos/telemetry_log.csv` con métricas de latencia, CPU y RAM mediante append atómico.
 - [ ] El script de SimPy corre de punta a punta con semilla fija y reproduce las métricas.
 - [ ] El script de contraste calcula el error porcentual y demuestra convergencia hacia el modelo $M/M/c$.
-- [ ] El archivo `locustfile.py` se ejecuta sin errores y prueba al menos 2 tipos de usuario.
+- [X] El archivo `locustfile.py` se ejecuta sin errores y prueba los 3 tipos de usuario con escenarios de la Pregunta 3 (Bono +0.2 asegurado).
