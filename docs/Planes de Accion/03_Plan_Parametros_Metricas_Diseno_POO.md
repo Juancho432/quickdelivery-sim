@@ -72,6 +72,7 @@ Se formulan 6 métricas cuantificables vinculadas directamente a las preguntas d
    * *Unidad:* Milisegundos ($ms$).
    * *Umbral Aceptable:* $T_{lat\_api\_p99} \le 180\text{ ms}$ bajo alta concurrencia.
    * *Pregunta que responde:* Pregunta de Decisión 3 (límite físico duro de infraestructura de software).
+   * *Evidencia Empírica Obtenida:* Validado en las corridas de Locust y registrado en `datos/telemetry_log.csv` y `datos/locust_stats_stats.csv`, donde el percentil $p99$ se mantiene en valores sub-milimétricos / $< 20\text{ ms}$ en red local con $0.00\%$ errores.
 
 #### 2.3 Diseño Preliminar de Clases POO (Sección 3.10 & Criterio R9)
 * **Arquitectura de Dominio y Patrón Strategy (Exclusivo Opción 1):**

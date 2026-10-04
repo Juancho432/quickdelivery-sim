@@ -7,7 +7,8 @@
 > * **Criterios de Rúbrica Oficial a Cubrir:** **C1, C2** (Elegibilidad), **R8** (Prototipo Técnico y Repositorio, 0.70 / 5.0 pts) y **Bono de Carga Sintética** (+0.20 pts sobre la nota final).  
 > * **Directrices Arquitectónicas:** Decisiones **D-04** (Arquitectura Multicontenedor Docker con PostgreSQL 15), **D-08** (Verificación preventiva de batería y límite de 6h), **D-09** (Endpoint KDS `ready`, pase a mostrador y promoción FIFO), **D-10** (Desacoplamiento estricto SimPy vs. API) y **D-11** (15 Exclusiones formales del sistema) documentadas en [`docs/Auditoria.md`](../Auditoria.md) y [`docs/Flujo_Completo_y_Dinamica_24h.md`](../Flujo_Completo_y_Dinamica_24h.md).  
 > * **Resolución de Fisuras y Casos Límite (Sesión `/grill-me`):** Incorporación de endpoints de presencia de repartidores (`login`, `location`, `logout`), cancelación voluntaria del cliente por impaciencia (`/cancel`), endpoint de configuración dinámica en caliente (`/config/`), evaluación Just-In-Time de ofertas y promoción FIFO automática de fogones culinarios.  
-> * **Objetivo de Calificación:** Asegurar **0.7 / 0.7 en R8** y los **+0.2 pts de Bono** mediante un despliegue reproducible con un solo comando (`docker compose up --build`), telemetría real en `datos/telemetry_log.csv` y reporte de carga sin fallos ($0\%$) en Locust.
+> * **Objetivo de Calificación:** Asegurar **0.7 / 0.7 en R8** y los **+0.2 pts de Bono** mediante un despliegue reproducible con un solo comando (`docker compose up --build`), telemetría real en `datos/telemetry_log.csv` y reporte de carga sin fallos ($0\%$) en Locust.  
+> * **Estado de Ejecución:** **COMPLETADO Y VERIFICADO AL 100%** (Código desarrollado en `sistema_real/`, `docker-compose.yml`, `locustfile.py`, `README.md`, y artefactos generados en `datos/`).
 
 ---
 
@@ -410,17 +411,17 @@ Para cumplir el requisito de rúbrica de **historial de commits verificable de l
 
 ## 11. Lista de Verificación de Cumplimiento (Checklist de Aprobación)
 
-- [ ] `requirements.txt` contiene todas las dependencias con versiones congeladas y compatibles.
-- [ ] La API expone 13 endpoints propios del dominio (supera con creces el mínimo de 3 de la rúbrica).
-- [ ] Los clientes disponen de endpoints de creación, rastreo y cancelación voluntaria (`POST /orders/{id}/cancel`).
-- [ ] La pantalla KDS (`GET /restaurants/{id}/orders`) cumple estrictamente la Exclusión 2 (sin recetas ni ingredientes).
-- [ ] El endpoint `POST /orders/{id}/ready` implementa la Decisión D-09 (pase a mostrador, liberación de fogón y promoción automática FIFO).
-- [ ] Los repartidores cuentan con su ciclo de vida completo: `login`, `location` (pings GPS), `offers` (ofertas JIT), `accept` atómico (`POST /orders/{id}/accept`), `status` (hitos de viaje) y `logout`.
-- [ ] Existe un endpoint de configuración en caliente (`GET/PUT /api/v1/config/`) para alternar políticas (`greedy`/`synchronized`) y flexibilizar umbrales en pruebas sin reiniciar contenedores.
-- [ ] El middleware genera activamente el archivo `datos/telemetry_log.csv` con CPU, RAM y latencias reales mediante append atómico.
-- [ ] Todo el sistema se levanta desde cero con: `docker compose up --build`.
-- [ ] `locustfile.py` incluye al menos 2 tipos de usuario (se incluyen 3), evalúa la Pregunta 3 y genera reportes HTML/CSV sin errores.
-- [ ] Los handoffs H3 y H5 están listos para alimentar los análisis y redacción del Integrante 3.
+- [X] `requirements.txt` contiene todas las dependencias con versiones congeladas y compatibles (`fastapi==0.110.0`, `uvicorn[standard]==0.29.0`, `pydantic==2.6.4`, `sqlalchemy==2.0.29`, `psycopg2-binary==2.9.9`, `psutil==5.9.8`, `locust==2.24.1`, etc.).
+- [X] La API expone 13 endpoints propios del dominio (supera con creces el mínimo de 3 de la rúbrica): 3 de Clientes, 2 de Restaurantes/KDS, 6 de Repartidores, 1 router de Configuración (`GET`/`PUT`) y 1 de Telemetría/Health.
+- [X] Los clientes disponen de endpoints de creación (`POST /api/v1/orders/`), rastreo (`GET /api/v1/orders/{id}/tracking`) y cancelación voluntaria por impaciencia (`POST /api/v1/orders/{id}/cancel`).
+- [X] La pantalla KDS (`GET /api/v1/restaurants/{id}/orders`) cumple estrictamente la Exclusión 2 (retorna `KDSOrderResponseSchema` sin recetas ni ingredientes).
+- [X] El endpoint `POST /api/v1/orders/{id}/ready` implementa la Decisión D-09 (pase a mostrador, liberación de fogón y promoción automática FIFO de comandas en espera).
+- [X] Los repartidores cuentan con su ciclo de vida completo: `login` (`POST /api/v1/couriers/login`), `location` (pings GPS), `offers` (evaluación JIT), `accept` atómico (`POST /api/v1/orders/{id}/accept`), `status` (hitos de viaje: `LlegadaARestaurante`, `EN_TRANSITO_CLIENTE`, `ENTREGADO`) y `logout`.
+- [X] Existe un endpoint de configuración en caliente (`GET`/`PUT` `/api/v1/config/`) para alternar políticas (`greedy`/`synchronized`), ajustar $\Delta t_{\text{buffer}}$ y flexibilizar umbrales temporales en pruebas sin reiniciar contenedores.
+- [X] El middleware genera activamente el archivo `datos/telemetry_log.csv` con CPU, RAM, códigos HTTP y latencias reales mediante append atómico continuo.
+- [X] Todo el sistema se levanta desde cero con: `docker compose up --build` (PostgreSQL 15 con healthcheck `pg_isready` y servicio API dependiente).
+- [X] `locustfile.py` incluye los 3 tipos de usuario (`CustomerUser`, `RestaurantUser`, `CourierUser`), evalúa escenarios de pings GPS (5s vs 15s) para la Pregunta 3 y generó reportes HTML/CSV sin errores (`0.00%` fallos en `datos/locust_report.html` y `datos/locust_stats_stats.csv`).
+- [X] Los handoffs H3 y H5 están completados y listos en la carpeta `datos/` (`telemetry_log.csv`, `locust_report.html`, `locust_stats_*.csv`) para alimentar los análisis y redacción del Integrante 3.
 
 ---
 
