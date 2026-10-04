@@ -32,6 +32,7 @@ services:
       - "8000:8000"
     volumes:
       - ./datos:/app/datos
+      - ./sistema_real:/app/sistema_real
     depends_on:
       db:
         condition: service_healthy

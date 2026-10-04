@@ -2,13 +2,25 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
+import socket
+
 # Obtención de la URL de conexión desde variables de entorno
 # En Docker Compose apunta al servicio 'db' (PostgreSQL 15 Alpine)
-# Permite fallback transparente a SQLite para pruebas locales o CI
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://delivery_user:delivery_pass@db:5432/delivery_db"
-)
+# Fuera de Docker ('db' no resoluble en host) conmuta automáticamente a 'localhost'
+DEFAULT_POSTGRES = "postgresql+psycopg2://delivery_user:delivery_pass@db:5432/delivery_db"
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_POSTGRES)
+
+# Asegurar que se use el dialecto psycopg2 si la URL viene genérica
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+if "@db:5432" in DATABASE_URL:
+    try:
+        socket.gethostbyname("db")
+    except (socket.gaierror, socket.herror, OSError):
+        DATABASE_URL = DATABASE_URL.replace("@db:5432", "@localhost:5432")
+
+
 
 # Argumentos de conexión específicos según el motor de base de datos
 engine_kwargs = {}

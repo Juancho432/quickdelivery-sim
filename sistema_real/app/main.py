@@ -13,7 +13,8 @@ from sistema_real.app.schemas import (
     KDSOrderResponseSchema, OrderReadyResponseSchema,
     CourierLoginSchema, CourierLocationUpdateSchema, CourierOfferItemSchema,
     OrderAcceptSchema, OrderStatusUpdateSchema,
-    TrackingResponseSchema, SystemConfigSchema, HealthResponseSchema
+    TrackingResponseSchema, SystemConfigSchema, HealthResponseSchema,
+    RestaurantResponseSchema, CourierResponseSchema, OrderStatsSummarySchema
 )
 from sistema_real.app.telemetry import TelemetryMiddleware, get_telemetry_stats
 from sistema_real.app.dispatch import (
@@ -350,3 +351,82 @@ def healthcheck(db: Session = Depends(get_db)):
         latency_avg_ms=stats["latency_avg_ms"],
         uptime_seconds=round(uptime, 1)
     )
+
+
+# ==============================================================================
+# 5. ENDPOINTS ADICIONALES PARA DASHBOARD Y OBSERVABILIDAD
+# ==============================================================================
+
+@app.get("/api/v1/restaurants/", response_model=List[RestaurantResponseSchema], tags=["Restaurantes (KDS)"])
+def list_restaurants(db: Session = Depends(get_db)):
+    """Consulta la lista completa de restaurantes y sus coordenadas en el plano 6x6 km."""
+    return db.query(RestaurantModel).order_by(RestaurantModel.id.asc()).all()
+
+
+@app.get("/api/v1/restaurants/{restaurant_id}", response_model=RestaurantResponseSchema, tags=["Restaurantes (KDS)"])
+def get_restaurant_detail(restaurant_id: int, db: Session = Depends(get_db)):
+    """Consulta los datos y capacidad de un restaurante específico por su ID."""
+    restaurant = db.query(RestaurantModel).filter(RestaurantModel.id == restaurant_id).first()
+    if not restaurant:
+        raise HTTPException(status_code=404, detail="Restaurante no encontrado")
+    return restaurant
+
+
+@app.get("/api/v1/couriers/", response_model=List[CourierResponseSchema], tags=["Repartidores"])
+def list_couriers(only_active: bool = False, db: Session = Depends(get_db)):
+    """Consulta la flota de repartidores, su ubicación GPS actual y nivel de batería."""
+    query = db.query(CourierModel)
+    if only_active:
+        query = query.filter(CourierModel.is_active == True)
+    return query.order_by(CourierModel.id.asc()).all()
+
+
+@app.get("/api/v1/couriers/{courier_id}", response_model=CourierResponseSchema, tags=["Repartidores"])
+def get_courier_detail(courier_id: int, db: Session = Depends(get_db)):
+    """Consulta los datos, GPS y batería de un repartidor específico por su ID."""
+    courier = db.query(CourierModel).filter(CourierModel.id == courier_id).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Repartidor no encontrado")
+    return courier
+
+
+@app.get("/api/v1/orders/", response_model=List[OrderResponseSchema], tags=["Clientes"])
+def list_orders(
+    status_filter: Optional[str] = Query(None, description="Filtro opcional por estado"),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db)
+):
+    """Consulta órdenes registradas en el sistema con orden descendente por fecha de creación."""
+    query = db.query(OrderModel)
+    if status_filter:
+        query = query.filter(OrderModel.status == status_filter)
+    return query.order_by(OrderModel.id.desc()).limit(limit).all()
+
+
+@app.get("/api/v1/orders/{order_id}", response_model=OrderResponseSchema, tags=["Clientes"])
+def get_order_detail(order_id: int, db: Session = Depends(get_db)):
+    """Consulta el detalle completo de un pedido por su ID."""
+    order = db.query(OrderModel).filter(OrderModel.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    return order
+
+
+@app.get("/api/v1/orders/summary/stats", response_model=OrderStatsSummarySchema, tags=["DevOps"])
+def get_order_stats_summary(db: Session = Depends(get_db)):
+    """Calcula el resumen de órdenes para métricas (totales, en curso, completadas y canceladas)."""
+    total = db.query(OrderModel).count()
+    completed = db.query(OrderModel).filter(OrderModel.status == "ENTREGADO").count()
+    cancelled = db.query(OrderModel).filter(OrderModel.status.like("CANCELADO%")).count()
+    in_progress = total - completed - cancelled
+    connected_couriers = db.query(CourierModel).filter(CourierModel.is_active == True).count()
+
+    return OrderStatsSummarySchema(
+        total_orders=total,
+        orders_in_progress=max(0, in_progress),
+        orders_completed=completed,
+        orders_cancelled=cancelled,
+        connected_couriers=connected_couriers
+    )
+
+

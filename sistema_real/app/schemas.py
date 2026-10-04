@@ -139,3 +139,40 @@ class HealthResponseSchema(BaseModel):
     memory_mb: float
     latency_avg_ms: float
     uptime_seconds: float
+
+
+# ---------------------------------------------------------
+# Esquemas para Consulta General y Dashboard
+# ---------------------------------------------------------
+class RestaurantResponseSchema(BaseModel):
+    id: int
+    name: str
+    coord_x: float
+    coord_y: float
+    kitchen_capacity: int
+
+    class Config:
+        from_attributes = True
+
+
+class CourierResponseSchema(BaseModel):
+    id: int
+    name: str
+    current_coord_x: float
+    current_coord_y: float
+    battery_level: float
+    is_available: bool
+    is_active: bool
+    shift_start_time: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class OrderStatsSummarySchema(BaseModel):
+    total_orders: int
+    orders_in_progress: int
+    orders_completed: int
+    orders_cancelled: int
+    connected_couriers: int
+

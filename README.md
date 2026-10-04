@@ -178,7 +178,41 @@ La API cuenta con una suite integral de **34 pruebas automatizadas** que validan
 
 ---
 
-## 8. Estructura de Directorios del Repositorio
+---
+
+## 8. Dashboard de Operaciones en Tiempo Real (NiceGUI)
+
+El proyecto cuenta con un Centro de Operaciones interactivo construido en **NiceGUI** montado sobre WebSockets nativos, lo que garantiza actualizaciones continuas (cada 1.0 s) de métricas y posiciones en el mapa **sin parpadeos ni recargas de página**:
+
+* **Página 1: Mapa & Operaciones (`/`):**
+  * **Plano Cartesiano 2D ($[0.00, 6.00]\text{ km}$):** Visualización interactiva en SVG con cuadrícula urbana, 10 restaurantes (🏪 verdes), clientes (👤 ámbar) y repartidores (🛵 cyan/magenta).
+  * **Leyenda Interactiva con Filtros Booleanos:** Permite pulsar sobre cualquier ítem de la leyenda (`Restaurantes`, `Clientes`, `Couriers Libres`, `Couriers en Ruta`, `Punto de Clic`) para conmutar su visibilidad en el plano, con botones de acceso rápido "Todos" y "Ninguno".
+  * **Ajuste Dinámico de Transparencias:** Al seleccionar cualquier orden en progreso, los elementos ajenos se atenúan al $15\%$ de opacidad (`opacity: 0.15`) y se resaltan al $100\%$ el restaurante emisor, el cliente receptor, el repartidor asignado y la trayectoria/vector de ruta.
+  * **Creación de Pedidos:** Permite crear comandas seleccionando local y haciendo clic directamente sobre el mapa para fijar $(X, Y)$ en km sin notificaciones intrusivas.
+  * **Control del Ciclo de Vida y Piloto Automático:** Botones para simular el avance de la comanda (Pase a Mostrador `POST /ready`, Asignación atómica `POST /accept`, Recogida `PATCH /status` y Entrega final `ENTREGADO`) o activar el modo piloto automático para ver la cinemática en vivo segundo a segundo.
+
+* **Página 2: Métricas & Configuración (`/metricas`):**
+  * **Métricas Operativas:** Tarjetas con repartidores conectados (libres vs en ruta) y pedidos del día.
+  * **Gráfico de Torta (Pie Chart):** Componente interactivo `ui.echart` con la distribución en tiempo real de pedidos en curso, completados y cancelados.
+  * **Telemetría de Hardware:** Lectura continua de CPU (%) y RAM (MB) del host vía `psutil`.
+  * **Configuración en Caliente (`/api/v1/config/`):** Editor interactivo para conmutar la política de asignación (`synchronized` vs `greedy`), margen de holgura $\Delta t_{\text{buffer}}$, límites de turno y umbrales de batería.
+
+> 📖 **Documentación Técnica:** Para conocer los detalles de diseño, arquitectura modular y resolución de incidentes del Centro de Control, consulta la [Documentación del Dashboard de Operaciones](docs/Dashboard_Centro_Operaciones.md).
+
+### Ejecución del Dashboard:
+
+```bash
+# Iniciar el dashboard en el puerto 8080 (requiere la API levantada o en ejecución)
+python -m sistema_real.dashboard
+
+# O directamente
+python sistema_real/dashboard.py
+```
+Accede desde el navegador a: [http://localhost:8080](http://localhost:8080)
+
+---
+
+## 9. Estructura de Directorios del Repositorio
 
 ```text
 Modelos - PA/
@@ -195,13 +229,22 @@ Modelos - PA/
 │   ├── test_couriers.py           # Pruebas de repartidores y asignación (E6-E11)
 │   ├── test_config.py             # Pruebas de configuración dinámica (E12)
 │   ├── test_devops_telemetry.py   # Pruebas de telemetría y salud (E13)
+│   ├── test_dashboard.py          # Pruebas de endpoints para dashboard y renderer SVG 2D
 │   ├── test_business_logic.py     # Pruebas de reglas D-07, D-08 y cinemática tau=1.25
 │   ├── test_end_to_end.py         # Pruebas de flujo completo de punta a punta
 │   └── test_live_api.py           # Pruebas de conectividad contra socket :8000
-├── sistema_real/                  # Código fuente de la API REST real
+├── sistema_real/                  # Código fuente del sistema real y dashboard
+│   ├── dashboard.py               # Archivo base y entrypoint maestro (NiceGUI)
+│   ├── dashboard_pages/           # Paquete extensible de páginas modulares
+│   │   ├── __init__.py            # Descubridor y registrador automático de páginas
+│   │   ├── common.py              # Estado global y cabecera de navegación común
+│   │   ├── map_page.py            # Página 1: Plano 2D interactivo, clic nativo y control
+│   │   └── metrics_page.py        # Página 2: Métricas lado a lado y switch de estrategia
+│   ├── map_renderer.py            # Renderizador del plano cartesiano 2D con transparencias
+│   ├── api_client.py              # Cliente HTTP asíncrono para consumir FastAPI
 │   └── app/
 │       ├── __init__.py
-│       ├── main.py                # Entrada de FastAPI y catálogo de 13 endpoints
+│       ├── main.py                # Entrada de FastAPI y catálogo de endpoints REST
 │       ├── models.py              # Modelos SQLAlchemy y seeding de 10 locales (47 fogones)
 │       ├── schemas.py             # Esquemas de validación Pydantic v2
 │       ├── database.py            # Conexión y sesión persistente PostgreSQL 15
@@ -214,6 +257,7 @@ Modelos - PA/
 │   ├── telemetry_log.csv          # Registro en vivo de peticiones HTTP, CPU y RAM
 │   └── simulation_results.json    # Resultados de corridas SimPy
 └── docs/                          # Documentación del proyecto de aula
+    ├── Dashboard_Centro_Operaciones.md # Especificación del dashboard interactivo y gemelo digital
     ├── Documentacion_Pruebas_Unitarias_y_API.md # Matriz y catálogo de pruebas
     ├── Asignaciones_Equipo_E1.md  # Matriz de roles y responsabilidades de 3 personas
     ├── Auditoria.md               # Bitácora central, criterios C1-C7 y decisiones D-01 a D-11

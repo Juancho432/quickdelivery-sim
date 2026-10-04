@@ -18,6 +18,7 @@ from tests.test_couriers import TestCourierLifecycleAndDispatch
 from tests.test_business_logic import TestBusinessLogicAndEdgeCases
 from tests.test_end_to_end import TestEndToEndCompleteFlows
 from tests.test_live_api import TestLiveApiConnectivity
+from tests.test_dashboard import TestDashboardIntegration
 
 __all__ = [
     "TestDevOpsAndTelemetry",
@@ -28,6 +29,7 @@ __all__ = [
     "TestBusinessLogicAndEdgeCases",
     "TestEndToEndCompleteFlows",
     "TestLiveApiConnectivity",
+    "TestDashboardIntegration",
 ]
 
 if __name__ == "__main__":
