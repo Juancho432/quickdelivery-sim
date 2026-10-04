@@ -25,10 +25,10 @@ flowchart TD
         M2["Motor SimPy v0 24h (simulacion/ - R8)\nentities.py, policies.py (Strategy), simpy_engine.py"]
     end
 
-    subgraph P2["👤 Persona 2: Infraestructura y DevOps"]
-        I1["API REST FastAPI Multicontenedor (sistema_real/ - R8)\n6 Endpoints Propios + PostgreSQL 15"]
+    subgraph P2["👤 Persona 2: Infraestructura y DevOps [COMPLETADO]"]
+        I1["API REST FastAPI Multicontenedor (sistema_real/ - R8)\n13 Endpoints Propios + PostgreSQL 15"]
         I2["Orquestación Docker Compose y Middleware Telemetría\ndatos/telemetry_log.csv (psutil: CPU/RAM/Latencias)"]
-        I3["Pruebas de Carga Locust (locustfile.py - Bono +0.2)\nPerfiles Customer, Courier y Restaurant"]
+        I3["Pruebas de Carga Locust (locustfile.py - Bono +0.2)\nPerfiles Customer, Courier y Restaurant (0% fallos)"]
         I4["Documentación de Infraestructura y README.md"]
     end
 
@@ -115,36 +115,37 @@ A continuación se detalla el paquete de trabajo para cada integrante, estructur
   * `datos/telemetry_log.csv`
 
 #### Matriz de Tareas Específicas:
-- [ ] **T2.1 (Infraestructura - Docker y Entorno): Contenedorización Reproducible:**
-  - `requirements.txt`: Fijar dependencias con versiones exactas (`fastapi`, `uvicorn[standard]`, `sqlalchemy`, `psycopg2-binary`, `psutil`, `simpy`, `numpy`, `scipy`, `locust`, `pydantic`).
-  - `Dockerfile`: Crear la construcción multi-stage optimizada basada en `python:3.11-slim` o superior.
+- [X] **T2.1 (Infraestructura - Docker y Entorno): Contenedorización Reproducible:**
+  - `requirements.txt`: Fijar dependencias con versiones exactas (`fastapi==0.110.0`, `uvicorn[standard]==0.29.0`, `sqlalchemy==2.0.29`, `psycopg2-binary==2.9.9`, `psutil==5.9.8`, `simpy==4.1.1`, `numpy==1.26.4`, `scipy==1.13.0`, `locust==2.24.1`, `pydantic==2.6.4`).
+  - `Dockerfile`: Crear la construcción optimizada basada en `python:3.11-slim` con usuario no-root y dependencias del sistema.
   - `docker-compose.yml`: Orquestar la arquitectura multicontenedor (Decisión D-04):
-    - Servicio `db`: Contenedor oficial `postgres:15-alpine` con variables de entorno, volumen montado `postgres_data` y healthcheck activo (`pg_isready`).
-    - Servicio `api`: Servicio FastAPI expuesto en `http://localhost:8000`, enlazado a la red interna y con volumen montado para registrar logs en `datos/`.
-  - Probar que el entorno se levante sin errores y desde cero con el comando único:  
+    - Servicio `db`: Contenedor oficial `postgres:15-alpine` con volumen persistente `postgres_data` y healthcheck activo (`pg_isready`).
+    - Servicio `api`: Servicio FastAPI expuesto en `http://localhost:8000`, dependiente de `db` (condition: service_healthy) y con volumen montado `./datos:/app/datos`.
+  - Despliegue verificado y funcional desde cero con el comando único:  
     `docker compose up --build`
-- [ ] **T2.2 (Backend - `sistema_real/`): API REST Mínima en FastAPI:**
-  - `database.py`: Conexión y sesión persistente conectada a PostgreSQL 15 mediante SQLAlchemy.
-  - `models.py`: Esquemas relacionales y Pydantic para `OrderModel`, `CourierModel`, `RestaurantModel` y `TelemetryRecordModel`.
-  - `main.py`: Implementar y probar los 6 endpoints propios requeridos (Decisión D-09):
-    1. `POST /api/v1/orders/`: Creación y persistencia de comanda.
-    2. `GET /api/v1/restaurants/{id}/orders`: Consulta KDS de comandas activas para la cocina del local.
-    3. `POST /api/v1/orders/{id}/ready`: Notificación de comanda terminada (libera fogón e inicia temporizador de mostrador).
-    4. `POST /api/v1/dispatch/assign/`: Disparo del motor de emparejamiento con repartidores disponibles.
-    5. `GET /api/v1/orders/{id}/tracking`: Consulta en tiempo real de posición del repartidor y estado.
-    6. `GET /api/v1/telemetry/health`: Diagnóstico de salud del sistema y contención de recursos.
-  - `dispatch.py`: Lógica transaccional real para emparejar pedidos y calcular distancias viales con sinuosidad $\tau = 1.25$.
-- [ ] **T2.3 (Telemetría - `sistema_real/app/telemetry.py`): Instrumentación de Recursos:**
-  - Programar un middleware asíncrono en FastAPI (`BaseHTTPMiddleware`) que intercepte cada petición HTTP y capture: timestamp, método, ruta, código de estado, latencia ($ms$), porcentaje de CPU (`psutil.cpu_percent()`) y memoria RAM en MB (`psutil.virtual_memory()`).
-  - Exportar los registros en tiempo real a `datos/telemetry_log.csv` para alimentar los análisis del Integrante 3.
-- [ ] **T2.4 (Bono +0.2 - `locustfile.py`): Pruebas de Humo de Carga Sintética:**
-  - Diseñar el script de carga con Locust incorporando los 3 perfiles concurrentes:
-    - `CustomerUser`: Emite pedidos (`POST /orders/`) y sondea el rastreo (`GET /orders/{id}/tracking`).
-    - `CourierUser`: Notifica disponibilidad y solicita asignaciones (`POST /dispatch/assign/`).
-    - `RestaurantUser`: Consulta KDS y confirma platos listos (`POST /orders/{id}/ready`).
-  - Generar un reporte ejecutable de RPS, fallos ($0\%$) y percentiles de latencia para adjuntar como evidencia del bono.
-- [ ] **T2.5 (Doc - `README.md`): Documentación Operativa de la Infraestructura:**
-  - Redactar el `README.md` en la raíz del repositorio detallando prerrequisitos, comando único de arranque, endpoints disponibles y guía de ejecución de Locust.
+- [X] **T2.2 (Backend - `sistema_real/`): API REST Integral en FastAPI (13 Endpoints):**
+  - `database.py`: Conexión y sesión persistente conectada a PostgreSQL 15 mediante SQLAlchemy con pool optimizado y soporte de inicialización.
+  - `models.py`: Modelos SQLAlchemy para `RestaurantModel` (con seed de 10 locales y 47 fogones totales), `OrderModel` (11 estados DES), `CourierModel` (batería, turno 6h) y `TrackingRecordModel`.
+  - `schemas.py`: Esquemas Pydantic V2 de validación y respuesta para todos los payloads del sistema.
+  - `dispatch.py`: Lógica transaccional de despacho con cinemática vial Manhattan ($\tau = 1.25$, velocidad $18\text{ km/h}$), calificación JIT de ofertas con filtros de batería ($\ge 15\%$) y turno de 6h, aceptación atómica concurrente (`SELECT FOR UPDATE`), transiciones de orden y promoción automática FIFO de fogones culinarios.
+  - `config.py`: Gestor de configuración dinámica en tiempo real para alternar políticas (`greedy`/`synchronized`) y flexibilizar umbrales en pruebas.
+  - `main.py`: Implementar y verificar los **13 endpoints propios** categorizados por actor:
+    1. **Clientes (3):** `POST /api/v1/orders/` (ingesta), `GET /api/v1/orders/{id}/tracking` (rastreo), `POST /api/v1/orders/{id}/cancel` (cancelación voluntaria).
+    2. **Restaurantes/KDS (2):** `GET /api/v1/restaurants/{id}/orders` (cola KDS sin ingredientes, Excl-2), `POST /api/v1/orders/{id}/ready` (pase a mostrador D-09, liberación de fogón y promoción FIFO).
+    3. **Repartidores (6):** `POST /api/v1/couriers/login` (inicio de turno), `POST /api/v1/couriers/{id}/location` (pings GPS), `GET /api/v1/couriers/{id}/offers` (ofertas JIT), `POST /api/v1/orders/{id}/accept` (asignación atómica), `PATCH /api/v1/orders/{id}/status` (hitos de viaje y entrega final D-08), `POST /api/v1/couriers/{id}/logout` (cierre de turno).
+    4. **Configuración (1 router, 2 métodos):** `GET /api/v1/config/` y `PUT /api/v1/config/` (control en tiempo real).
+    5. **DevOps / Salud (1):** `GET /api/v1/telemetry/health` (diagnóstico de hardware y conexión PostgreSQL).
+- [X] **T2.3 (Telemetría - `sistema_real/app/telemetry.py`): Instrumentación de Recursos:**
+  - Programar un middleware asíncrono en FastAPI (`BaseHTTPMiddleware`) que intercepte cada petición HTTP y capture: timestamp ISO-8601, método, ruta, código de estado, latencia ($ms$), porcentaje de CPU (`psutil.cpu_percent()`) y memoria RAM residente en MB.
+  - Exportar los registros en tiempo real a `datos/telemetry_log.csv` con apertura en modo append atómico con flush inmediato (`buffering=1`), alimentando el análisis del Integrante 3.
+- [X] **T2.4 (Bono +0.2 - `locustfile.py`): Pruebas de Humo de Carga Sintética:**
+  - Diseñar el script de carga con Locust incorporando 3 perfiles concurrentes:
+    - `CustomerUser` (peso 5): Emite pedidos, consulta rastreo y cancela esporádicamente.
+    - `RestaurantUser` (peso 2): Consulta pantalla KDS y confirma platos listos en mostrador.
+    - `CourierUser` (peso 3): Login, pings GPS continuos (escenarios 5s vs 15s para Pregunta 3), consulta de ofertas JIT, aceptación atómica y transiciones de entrega.
+  - Ejecución automatizada en modo headless generando `datos/locust_report.html` y estadísticas CSV en `datos/` con $0.00\%$ de tasa de errores y percentiles de latencia sub-milimétricos.
+- [X] **T2.5 (Doc - `README.md`): Documentación Operativa de la Infraestructura:**
+  - Redactar el `README.md` exhaustivo en la raíz del repositorio detallando prerrequisitos, arquitectura de dos contenedores, comando único de arranque, catálogo de 13 endpoints, guía de ejecución de Locust y verificación de telemetría.
 
 #### Dominio Conceptual Exigido para la Sustentación Oral (Sección 5.2):
 * Demostrar en vivo cómo levantar la infraestructura con Docker Compose y consultar la documentación interactiva en Swagger.
@@ -220,9 +221,9 @@ A continuación se detalla el paquete de trabajo para cada integrante, estructur
 | :--- | :--- | :--- | :--- | :--- |
 | **H1: Parámetros del Modelo** | Integrante 3 (Datos) | Integrante 1 (Modelos) | Distribuciones, medias y factores ($\tau=1.25$, $\mu_{ln}=2.85$) en `Fuentes.md` para inicializar generadores en SimPy. | Inicio de Fase 2 |
 | **H2: Contrato POO Strategy** | Integrante 3 (Datos) | Integrante 1 (Modelos) | Definición de clases abstractas (`DispatchPolicy`) y firmas de métodos para programar `policies.py`. | Inicio de Fase 2 |
-| **H3: Telemetría de la API** | Integrante 2 (Infra) | Integrante 3 (Datos) | Archivo real `datos/telemetry_log.csv` con métricas de latencia y CPU/RAM para validar el KPI $T_{lat\_api\_p99}$. | Cierre de Fase 5 |
+| **H3: Telemetría de la API** | Integrante 2 (Infra) | Integrante 3 (Datos) | Archivo real `datos/telemetry_log.csv` con métricas de latencia y CPU/RAM para validar el KPI $T_{lat\_api\_p99}$. | **COMPLETADO** (Generado en `datos/telemetry_log.csv`) |
 | **H4: Trazas Markovianas** | Integrante 1 (Modelos) | Integrante 3 (Datos) | Simulación canónica SimPy en condiciones markovianas para que el Integrante 3 ejecute el contraste analítico (error $< 5\%$). | Mitad de Fase 2 |
-| **H5: Reporte de Locust** | Integrante 2 (Infra) | Integrante 3 (Datos) | Reporte HTML/CSV de Locust para fundamentar el Plan de Recolección de Datos de la Entrega 2 (Sección 3.8) y asegurar el bono. | Cierre de Fase 5 |
+| **H5: Reporte de Locust** | Integrante 2 (Infra) | Integrante 3 (Datos) | Reporte HTML/CSV de Locust para fundamentar el Plan de Recolección de Datos de la Entrega 2 (Sección 3.8) y asegurar el bono. | **COMPLETADO** (Generado en `datos/locust_report.html` y `locust_stats_*.csv`) |
 | **H6: Ensamble Documental** | Todo el Equipo | Todo el Equipo | Consolidación de Secciones 3.1 a 3.12 en `docs/Planteamiento_Proyecto.md` y exportación al PDF oficial de $\le 10$ páginas. | Hito Final de Entrega |
 
 ---
