@@ -1,5 +1,7 @@
 # QuickDelivery Sim — Gemelo Digital y Simulación Estocástica
+
 ## Proyecto de Aula: Entrega Parcial 1
+
 ### Plataforma de Pedidos a Domicilio con Despacho Sincronizado y Retención de Flota Abierta en 24 Horas
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg?style=flat&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com)
@@ -15,6 +17,7 @@
 **QuickDelivery Sim** es un prototipo técnico y gemelo digital de eventos discretos (DES) para optimizar el despacho en plataformas de pedidos a domicilio en tiempo real (estilo Rappi, Uber Eats o DiDi Food) a lo largo de una **jornada continua de 24 horas**.
 
 El sistema aborda el problema de la **desincronización entre la preparación en cocina y el arribo del repartidor**:
+
 * **Política Actual (Línea Base):** Asignación Voraz Inmediata, donde el repartidor pasa un promedio de $16.2\text{ minutos}$ inactivo en el restaurante esperando la comida, desperdiciando su cota física de 6 horas y drenando su batería móvil.
 * **Política Propuesta (Alternativa):** Despacho Sincronizado Predictivo ($t_{\text{despacho}} = \text{ETA}_{\text{listo}} - t_{\text{viaje}} + \Delta t_{\text{buffer}}$) con cinemática vial corregida por sinuosidad ($\tau = 1.25$), filtro preventivo de batería ($\ge 15\%$) y límite de fatiga de 6 horas (OIT/ILO, 2021).
 
@@ -50,9 +53,11 @@ El sistema real desacoplado opera en **tiempo de reloj real (*wall-clock time*)*
 ## 3. Despliegue con un Solo Comando (Criterio R8)
 
 ### Prerrequisitos:
+
 * **Docker Desktop** (con Docker Compose v2+) instalado y corriendo en Windows, Linux o macOS.
 
 ### Comando Único de Despliegue:
+
 Para construir las imágenes, inicializar PostgreSQL 15, ejecutar las migraciones, sembrar la base de datos (10 restaurantes y 47 fogones) y levantar la API con telemetría activa:
 
 ```bash
@@ -60,11 +65,13 @@ docker compose up --build
 ```
 
 Una vez levantado, la API estará disponible y lista para responder peticiones en:
+
 * **Documentación Interactiva Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
 * **Documentación ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
 * **Diagnóstico de Salud y Telemetría:** [http://localhost:8000/api/v1/telemetry/health](http://localhost:8000/api/v1/telemetry/health)
 
 Para detener los contenedores:
+
 ```bash
 docker compose down
 ```
@@ -76,15 +83,18 @@ docker compose down
 La API expone 13 endpoints organizados según los 4 actores del ecosistema:
 
 ### 👤 Clientes
+
 * `POST /api/v1/orders/`: Ingesta y persistencia de pedidos. Evalúa capacidad de cocina ($k_r$) y asigna a cocción (`EN_PREPARACION`) o cola (`EN_COLA_COCINA`).
 * `GET /api/v1/orders/{order_id}/tracking`: Rastreo GPS en tiempo real de posición cartesiana del courier, distancia restante y estado de viaje.
 * `POST /api/v1/orders/{order_id}/cancel`: Cancelación voluntaria del cliente por impaciencia (Weibull), liberando fogón o repartidor.
 
 ### 🍳 Restaurantes (KDS)
+
 * `GET /api/v1/restaurants/{restaurant_id}/orders`: Pantalla KDS de cocina (**sin ingredientes ni recetas, Exclusión 2**). Evalúa merma anti-limbo ($\ge 20\text{ min}$).
 * `POST /api/v1/orders/{order_id}/ready`: Notificación de comanda lista en mostrador (Decisión D-09). Libera fogón y **promueve automáticamente la siguiente orden en cola FIFO**.
 
 ### 🛵 Repartidores
+
 * `POST /api/v1/couriers/login`: Inicio de turno de 6 horas, registro de batería inicial ($\sim \mathcal{N}(95\%, 5\%)$) y disponibilidad.
 * `POST /api/v1/couriers/{courier_id}/location`: Pings periódicos de telemetría GPS y batería (insumo para Pregunta 3: 5s vs 15s).
 * `GET /api/v1/couriers/{courier_id}/offers`: Consulta Just-In-Time de ofertas calificadas (filtros de batería $\ge 15\%$, turno $< 6\text{ h}$ y ventana de 45 s).
@@ -93,6 +103,7 @@ La API expone 13 endpoints organizados según los 4 actores del ecosistema:
 * `POST /api/v1/couriers/{courier_id}/logout`: Cierre formal de turno voluntario o forzado.
 
 ### ⚙️ Configuración y DevOps
+
 * `GET /api/v1/config/`: Consulta de parámetros operativos vigentes.
 * `PUT /api/v1/config/`: **Control Dinámico en Tiempo Real:** Permite alternar la política activa (`greedy` vs `synchronized`), ajustar el buffer $\Delta t_{\text{buffer}} \in [0, 5]\text{ min}$ y flexibilizar límites temporales para tests rápidos sin reiniciar contenedores.
 * `GET /api/v1/telemetry/health`: Diagnóstico continuo de CPU (`psutil`), RAM, estado de la conexión a PostgreSQL y latencia promedio.
@@ -102,11 +113,13 @@ La API expone 13 endpoints organizados según los 4 actores del ecosistema:
 ## 5. Pruebas de Carga Sintética con Locust (Bono +0.2)
 
 El archivo `locustfile.py` implementa una prueba de carga sintética que simula la interacción concurrente de los 3 actores:
+
 * `CustomerUser` (Weight = 5): Crea pedidos, consulta rastreo y simula cancelaciones esporádicas.
 * `RestaurantUser` (Weight = 2): Consulta pantalla KDS y confirma comandas listas en mostrador.
 * `CourierUser` (Weight = 3): Inicia turno, emite pings GPS, sondea ofertas calificadas, compite por aceptar viajes y avanza los estados de entrega.
 
 ### Ejecución Headless y Generación de Reportes:
+
 Con la API levantada en Docker, ejecuta en otra terminal:
 
 ```bash
@@ -114,9 +127,11 @@ locust -f locustfile.py --headless -u 50 -r 5 --run-time 1m --host http://localh
 ```
 
 ### Ejecución con Interfaz Gráfica:
+
 ```bash
 locust -f locustfile.py --host http://localhost:8000
 ```
+
 Accede al panel de control en [http://localhost:8089](http://localhost:8089) para configurar usuarios concurrentes y tasa de spawn.
 
 ---
@@ -124,6 +139,7 @@ Accede al panel de control en [http://localhost:8089](http://localhost:8089) par
 ## 6. Telemetría de Sistema en Tiempo Real
 
 El middleware asíncrono en FastAPI intercepta cada solicitud HTTP y escribe de forma atómica en el archivo [`datos/telemetry_log.csv`](datos/telemetry_log.csv):
+
 ```csv
 timestamp,method,path,status_code,latency_ms,cpu_percent,memory_mb
 2026-10-02T17:00:00.123456+00:00,POST,/api/v1/orders/,201,14.25,8.5,42.80
@@ -134,15 +150,54 @@ Este registro permite validar el KPI de latencia de backend ($T_{\text{lat\_api\
 
 ---
 
-## 7. Estructura de Directorios del Repositorio
+## 7. Pruebas Automatizadas (Unitarias, Integración y Flujo Completo)
+
+La API cuenta con una suite integral de **34 pruebas automatizadas** que validan la lógica transaccional, cinemática vial y consistencia de datos de los 13 endpoints:
+
+* **¿Qué se prueba?:**
+
+  * **Caminos Positivos (Happy Paths):** Flujo completo de pedidos (*End-to-End*), asignación y despacho sincronizado, cálculo de tarifas con bono de mostrador urgente (+20%), contención culinaria en fogones libres, pings de telemetría GPS, inicio/cierre de turnos y diagnóstico de salud.
+  * **Caminos Negativos y Excepciones:** Rechazo de coordenadas fuera de cuadrante metropolitano $[0.0, 6.0]\text{ km}$ (`422`), restaurantes inválidos (`422`), órdenes o repartidores inexistentes (`404`), cancelaciones prohibidas de pedidos ya entregados (`400`), bloqueo atómico con `409 Conflict` ante carreras de doble aceptación (`SELECT FOR UPDATE`), y rechazo de repartidores no autorizados para transicionar estados (`403`).
+  * **Reglas de Negocio Críticas (Decisiones D-01 a D-11):** Protocolo Anti-Limbo en mostrador a los 20 min (**D-07**), exclusión preventiva de ofertas con batería $< 15\%$ y auto-logout tras entrega (**D-08**), promoción FIFO culinaria automática (**D-09**), pantalla KDS sin recetas ni ingredientes (**D-11 Excl-2**) y sinuosidad vial $\tau = 1.25$ a $18\text{ km/h}$ (**D-11 Excl-4**).
+* **Comandos de Ejecución:**
+
+  ```bash
+  # Ejecutar la suite completa consolidada (34 tests pasando al 100%)
+  python tests/test_api.py
+
+  # O mediante el descubridor estándar de unittest
+  python -m unittest discover tests -v
+
+  # Ejecutar módulos temáticos individuales
+  python tests/test_orders.py
+  python tests/test_couriers.py
+  python tests/test_end_to_end.py
+  ```
+
+> 📖 **Documentación Detallada de Pruebas:** Para consultar la matriz punto por punto de los 34 casos de prueba, códigos HTTP esperados y aserciones de base de datos, revisa la [Documentación de Pruebas Unitarias y de la API](docs/Documentacion_Pruebas_Unitarias_y_API.md).
+
+---
+
+## 8. Estructura de Directorios del Repositorio
 
 ```text
 Modelos - PA/
-├── README.md                      # Documentación y comando único de despliegue
+├── README.md                      # Documentación, guía de ejecución y despliegue
 ├── docker-compose.yml             # Orquestación de servicios (API + PostgreSQL 15)
 ├── Dockerfile                     # Construcción reproducible de imagen Python 3.11-slim
 ├── requirements.txt               # Dependencias Python con versiones congeladas
 ├── locustfile.py                  # Suite de pruebas de carga sintética (Bono +0.2)
+├── tests/                         # Suite modular de pruebas unitarias y de integración
+│   ├── base.py                    # Clase base TestQuickDeliveryAPIBase y helpers
+│   ├── test_api.py                # Agregador maestro de pruebas
+│   ├── test_orders.py             # Pruebas de clientes, pedidos y fogones (E1-E3)
+│   ├── test_kds.py                # Pruebas de pantalla KDS y fin de cocción (E4-E5)
+│   ├── test_couriers.py           # Pruebas de repartidores y asignación (E6-E11)
+│   ├── test_config.py             # Pruebas de configuración dinámica (E12)
+│   ├── test_devops_telemetry.py   # Pruebas de telemetría y salud (E13)
+│   ├── test_business_logic.py     # Pruebas de reglas D-07, D-08 y cinemática tau=1.25
+│   ├── test_end_to_end.py         # Pruebas de flujo completo de punta a punta
+│   └── test_live_api.py           # Pruebas de conectividad contra socket :8000
 ├── sistema_real/                  # Código fuente de la API REST real
 │   └── app/
 │       ├── __init__.py
@@ -159,6 +214,7 @@ Modelos - PA/
 │   ├── telemetry_log.csv          # Registro en vivo de peticiones HTTP, CPU y RAM
 │   └── simulation_results.json    # Resultados de corridas SimPy
 └── docs/                          # Documentación del proyecto de aula
+    ├── Documentacion_Pruebas_Unitarias_y_API.md # Matriz y catálogo de pruebas
     ├── Asignaciones_Equipo_E1.md  # Matriz de roles y responsabilidades de 3 personas
     ├── Auditoria.md               # Bitácora central, criterios C1-C7 y decisiones D-01 a D-11
     ├── Flujo_Completo_y_Dinamica_24h.md # Especificación del gemelo digital de 24 horas
