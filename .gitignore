@@ -7,3 +7,4 @@ __pycache__/
 postgres_data/
 locust_*
 *.csv
+scratch/
