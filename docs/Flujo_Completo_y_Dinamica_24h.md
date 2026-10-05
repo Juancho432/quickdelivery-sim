@@ -254,10 +254,12 @@ flowchart TD
     BROADCAST --> ACC{"¿Alguien acepta en 45s?"}
     ACC -- Sí --> ASIG["Repartidor Asignado\n(Inicia viaje al restaurante)"]
     ACC -- No --> ESC1["Escalamiento Fase 1:\nAmplía ventana y radio"]
-    ESC1 --> BROADCAST
+    ESC1 --> ACC_ESC{"¿Acepta repartidor tras\nexpansión Fase 1?"}
+    ACC_ESC -- Sí --> ASIG
+    ACC_ESC -- No --> MERMA["CANCELADO_SIN_REPARTIDOR\n(Sin couriers disponibles tras Fase 1;\nmerma asumida y reembolso total)"]
     
     %% Fin de Cocción y Mostrador
-    P3 --> P4["5. Fin Cocción y Notificación KDS (D-09):\nCocinero pulsa Pedido Listo\nPOST /api/v1/orders/{id}/ready\nLibera fogón kr -> Comida a Mostrador (t_listo)"]
+    P3 --> P4["5. Fin Cocción y Notificación KDS (D-09):\nCocinero pulsa Pedido Listo\nPOST /api/v1/orders/:id/ready\nLibera fogón kr -> Comida a Mostrador (t_listo)"]
     
     %% Verificación de asignación al salir de cocina
     P4 --> CHK_ASIG{"¿Tiene repartidor\nasignado?"}
