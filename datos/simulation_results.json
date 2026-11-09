@@ -1,7 +1,7 @@
 {
-    "W_total_p95_min": 34.75,
-    "T_espera_rest_avg_min": 1.5,
-    "T_mostrador_p95_min": 4.75,
-    "P_canc_porcentaje": 33.33,
-    "Rho_rep_avg_porcentaje": 82.75
+    "W_total_p95_min": 63.06,
+    "T_espera_rest_avg_min": 10.61,
+    "T_mostrador_p95_min": 12.08,
+    "P_canc_porcentaje": 26.46,
+    "Rho_rep_avg_porcentaje": 89.05
 }
