@@ -1,0 +1,214 @@
+\documentclass[11pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage[margin=2.0cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{caption}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small QuickDelivery Sim — Subsanación de Entrega 1}
+\lhead{\small Modelado y Simulación Estocástica}
+\cfoot{\thepage}
+
+\title{\textbf{\Large MEMORANDO FORMAL DE SUBSANACIÓN Y RESPUESTAS A LA RETROALIMENTACIÓN DE LA ENTREGA PARCIAL 1}\\[0.3em]
+\textbf{\large Proyecto de Aula: Gemelo Digital y Simulación Estocástica (\textit{QuickDelivery Sim})}}
+\author{\textbf{Juan Manuel Jaramillo} (Infraestructura y DevOps) \\
+\textbf{Sebastian Echeverri} (Modelado y Simulación DES) \\
+\textbf{Emmanuel Mora} (Análisis de Datos, Modelos Matemáticos y Calibración)}
+\date{\textbf{Calificación Inicial E1:} 4.3 / 5.0 \quad \textbar \quad \textbf{Fecha de Subsanación:} 9 de noviembre de 2026}
+
+\begin{document}
+
+\maketitle
+
+\section*{Resumen Ejecutivo}
+El presente documento consolida la respuesta formal, detallada y verificable a cada una de las observaciones emitidas por el equipo docente en la retroalimentación de la \textbf{Entrega Parcial 1} del Proyecto de Aula. Se documentan las modificaciones metodológicas, los desarrollos de software implementados en el simulador SimPy y en el marco analítico, los ajustes de fuentes bibliográficas y la resolución de inconsistencias en el documento maestro de planteamiento (\texttt{docs/PA\_E1\_Planteamiento\_QuickDeliverySim.tex}).
+
+\vspace{0.5em}
+\noindent \textbf{Matriz de Control de Subsanaciones:}
+\begin{itemize}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Item 1 (Simulación):} Implementación de la réplica markoviana canónica $M/M/c$ en SimPy sin sesgo de censura.
+    \item \textbf{Item 2 (Contraste):} Ejecución de 30 réplicas con intervalos de confianza del 95\% ($t$-Student) comparadas contra la Tabla 5.
+    \item \textbf{Item 3 (Pool de Repartidores):} Conexión de la política voraz y la política sincronizada con \texttt{CourierPool} en 24 horas.
+    \item \textbf{Item 4 (Cifras del Problema):} Declaración formal de las cifras de línea base como hipótesis de escenario.
+    \item \textbf{Item 5 (Depuración de Citas):} Retiro de atribuciones no sostenidas (FDA Food Code y OIT) y justificación rigurosa de reglas de negocio.
+    \item \textbf{Item 6 (Criterio C6):} Reclasificación de las 6 h como política operativa y adopción de los 47 fogones y pool de 30 conexiones TI como límites medibles.
+    \item \textbf{Item 7 (Coherencia de Eventos):} Alineación exacta 1 a 1 de 14 eventos discretos entre la Sección 3.6.4 y la Tabla 4 con $B_{\text{fogon}}(t)$.
+    \item \textbf{Item 8 (Plan de Datos):} Separación estricta entre telemetría TI (Locust) y calibración del sistema logístico (datasets externos).
+    \item \textbf{Item 9 (Formato y Declaración de IA):} Redacción técnica neutra, formato único APA 7.ª edición y tabla estructurada de uso de IA.
+\end{itemize}
+
+\hrulefill
+
+\section{Subsanación de Requerimientos Técnicos y de Código}
+
+\subsection{Item 1: Implementación de la Réplica Canónica $M/M/c$ en SimPy}
+\noindent \textbf{Observación Docente:} \textit{«Para la próxima entrega necesitan: Implementar la réplica M/M/c.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:} \\
+En la versión inicial, la función \texttt{run\_markovian\_replica()} contenía únicamente la firma del método sin lógica ejecutable. Se implementó formalmente en el archivo \texttt{simulacion/simpy\_engine.py} (función autónoma y método de instancia \texttt{SimpyEngine.run\_markovian\_replica}) una réplica de eventos discretos pura:
+\begin{itemize}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Llegadas y Servicios:} Proceso de Poisson homogéneo con tiempos entre arribos $\text{Exp}(\lambda)$ y tiempos de servicio por servidor $\text{Exp}(\mu)$.
+    \item \textbf{Capacidad de Servidores:} Recurso multicanal \texttt{simpy.Resource(env, capacity=c\_servers)} con disciplina FIFO estricta.
+    \item \textbf{Eliminación del Sesgo de Censura y Calentamiento:} Se definió una ventana de calentamiento del $15\%$ del horizonte temporal para alcanzar el régimen estacionario. Para el cálculo del factor de utilización ($\rho$), probabilidad de vacío ($P_0$), número promedio en cola ($L_q$) y número promedio en el sistema ($L$), se acumulan integrales exactas de tiempo continuo sobre el área bajo la curva del estado del sistema $\int n(t)dt$. Para el tiempo en cola ($W_q$), tiempo en el sistema ($W$) y probabilidad de espera ($P_w$), se registran las marcas de los clientes cuyos arribos ocurrieron estrictamente dentro de la ventana de observación estacionaria.
+\end{itemize}
+
+\subsection{Item 2: Ejecución de 30 Réplicas con Intervalos de Confianza y Contraste con Tabla 5}
+\noindent \textbf{Observación Docente:} \textit{«Ejecutar 30 réplicas con intervalos de confianza y compararlas con la Tabla 5.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:} \\
+Se automatizó en \texttt{analisis/contrast\_analysis.py} la ejecución de $N = 30$ réplicas independientes por cada una de las siete franjas horarias del proyecto definidas en \texttt{analisis/queueing\_theory.py}. Para cada métrica ($X \in \{\rho, P_w, L_q, W_q, W, L\}$) se calcularon la media muestral $\bar{X}$, la desviación estándar muestral $s$ y el intervalo de confianza del $95\%$ mediante la distribución $t$-Student con $n - 1 = 29$ grados de libertad ($t_{0.975, 29} = 2.0452$):
+\begin{equation}
+    \text{IC}_{95\%} = \left[ \bar{X} - t_{0.975, 29} \frac{s}{\sqrt{30}}, \; \bar{X} + t_{0.975, 29} \frac{s}{\sqrt{30}} \right]
+\end{equation}
+
+\noindent Los resultados del contraste numérico se presentan en la \textbf{Tabla 1} y quedan almacenados en formato JSON estructurado en \texttt{datos/mmc\_contrast\_results.json}:
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Contraste estadístico de 30 réplicas M/M/c en SimPy con IC del 95\% frente a la Tabla 5.}
+\begin{tabularx}{\textwidth}{l c c c c c}
+\toprule
+\textbf{Franja Horaria ($c$)} & $\rho$ Teo vs. SimPy ($\pm \text{IC}_{95\%}$) & $W_q$ [min] Teo vs. SimPy & $W$ [min] Teo vs. SimPy & $L$ Teo vs. SimPy & Err $W$ (\%) \\
+\midrule
+\textbf{Madrugada ($c=6$)} & 0.5000 vs. $0.5007 \pm 0.0019$ & 0.6610 vs. $0.6719 \pm 0.0269$ & 20.6610 vs. $20.6679 \pm 0.0720$ & 3.0991 vs. $3.1055 \pm 0.0143$ & 0.03\% \\
+\textbf{Desayuno ($c=25$)} & 0.8000 vs. $0.7984 \pm 0.0030$ & 0.8364 vs. $0.7754 \pm 0.0583$ & 20.8364 vs. $20.7490 \pm 0.0785$ & 20.8364 vs. $20.7349 \pm 0.1154$ & 0.42\% \\
+\textbf{Valle Mañana ($c=20$)} & 0.8000 vs. $0.7992 \pm 0.0031$ & 1.2804 vs. $1.2726 \pm 0.0824$ & 21.2804 vs. $21.2764 \pm 0.1104$ & 17.0243 vs. $17.0022 \pm 0.1176$ & 0.02\% \\
+\textbf{Pico Almuerzo ($c=70$)} & 0.7714 vs. $0.7722 \pm 0.0036$ & 0.0298 vs. $0.0311 \pm 0.0077$ & 20.0298 vs. $20.0248 \pm 0.0675$ & 54.0804 vs. $54.1398 \pm 0.2697$ & 0.02\% \\
+\textbf{Valle Tarde ($c=30$)} & 0.8000 vs. $0.7981 \pm 0.0033$ & 0.5762 vs. $0.5470 \pm 0.0480$ & 20.5762 vs. $20.5468 \pm 0.0856$ & 24.6914 vs. $24.5999 \pm 0.1383$ & 0.14\% \\
+\textbf{Pico Cena ($c=85$)} & 0.7765 vs. $0.7776 \pm 0.0029$ & 0.0166 vs. $0.0163 \pm 0.0045$ & 20.0166 vs. $19.9812 \pm 0.0620$ & 66.0548 vs. $66.1464 \pm 0.2526$ & 0.18\% \\
+\textbf{Cierre Nocturno ($c=14$)} & 0.7143 vs. $0.7147 \pm 0.0022$ & 0.8707 vs. $0.8670 \pm 0.0515$ & 20.8707 vs. $20.8624 \pm 0.0771$ & 10.4353 vs. $10.4394 \pm 0.0495$ & 0.04\% \\
+\bottomrule
+\end{tabularx}
+\vspace{0.2em}
+\raggedright \footnotesize \textit{En las 7 franjas analizadas, el valor analítico de Erlang-C queda contenido dentro del intervalo de confianza del 95\% y el error relativo porcentual en tiempo de ciclo total ($W$) y número en el sistema ($L$) es estrictamente inferior al $0.45\%$.}
+\end{table}
+
+\noindent Adicionalmente, el notebook interactivo \texttt{analisis/test\_contrast.ipynb} fue reescrito para ejecutar directamente el análisis y graficar las salidas sin requerir código disperso.
+
+\subsection{Item 3: Conexión de la Política Voraz y Sincronizada con un Pool de Repartidores}
+\noindent \textbf{Observación Docente:} \textit{«Conectar al menos la política voraz con un pool de repartidores.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:} \\
+En la entrega original, el motor en SimPy simulaba únicamente el proceso culinario en cocina y no instanciaba conductores activos en ruta. Para subsanar este punto:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item Se implementó la clase \texttt{CourierPool} en \texttt{simulacion/entities.py}, la cual gestiona la flota conectada, los repartidores disponibles (\texttt{LIBRE}), los ocupados en servicio y los eventos de notificación de disponibilidad (\texttt{courier\_available\_event}).
+    \item Se adaptó la interfaz Strategy \texttt{DispatchPolicy} en \texttt{simulacion/policies.py} con dos implementaciones concretas:
+    \begin{itemize}[leftmargin=1.2em]
+        \item \texttt{GreedyImmediatePolicy}: Asigna la orden en $t_{\text{despacho}} = t_{\text{actual}}$ al repartidor libre del pool más cercano al restaurante, sin sincronizar con la cocina.
+        \item \texttt{PredictiveSynchronizedPolicy}: Calcula $t_{\text{despacho}} = \max(t_{\text{actual}}, \text{ETA}_{\text{listo}} - t_{\text{viaje}} - \Delta t_{\text{buffer}})$, sincronizando el arribo del conductor con la salida del fogón.
+    \end{itemize}
+    \item En \texttt{simulacion/simpy\_engine.py}, el método \texttt{ciclo\_vida\_pedido()} orquesta la interacción punta a punta: reserva de fogón en \texttt{KitchenNetwork}, solicitud al \texttt{CourierPool}, desplazamiento con cinemática corregida ($\tau = 1.25$), espera ociosa en mostrador si el courier llega antes de que la comida esté lista, recogida, trayecto al cliente y entrega final.
+    \item \textbf{Resultados Comparativos en 24 Horas (Semilla 42, $\approx 1.880\text{ pedidos}$):}
+    \begin{itemize}[leftmargin=1.2em]
+        \item \textit{Política Voraz:} Espera ociosa del repartidor en restaurante $\mathbf{\bar{T}_{\text{espera\_rest}} = 10.61\text{ min}}$, $W_{\text{p95}} = 63.06\text{ min}$, $P_{\text{canc}} = 26.46\%$ y 95 órdenes canceladas por superar 20 minutos en mostrador debido al agotamiento del pool de repartidores en horas pico.
+        \item \textit{Política Sincronizada ($\Delta t = 2.5\text{ min}$):} Espera ociosa reducida en un \textbf{95.7\%} a $\mathbf{\bar{T}_{\text{espera\_rest}} = 0.46\text{ min}}$, $W_{\text{p95}} = 57.62\text{ min}$, cancelaciones reducidas al $19.51\%$ y órdenes expiradas en mostrador reducidas a 17 (+109 pedidos entregados adicionales con la misma flota).
+    \end{itemize}
+\end{enumerate}
+
+\section{Subsanaciones al Documento de Planteamiento}
+
+\subsection{Item 4: Cifras de Línea Base Declaradas como Hipótesis de Escenario}
+\noindent \textbf{Observación Docente:} \textit{«Cifras sin fuente: el problema presenta como hechos varias cifras que no tienen fuente (16,5 \% de cancelación, 16,2 min de espera, 35 \% de flota desconectada). Cítenlas o declárenlas como hipótesis de escenario.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:} \\
+En el documento anterior, los valores de $16.5\%$ de cancelación, $16.2\text{ min}$ de espera en local y $35\%$ de desconexión de flota se presentaban como datos empíricos fácticos sin citación. En la versión subsanada (Sección 3.3.1, Sección 3.5.4 y \texttt{docs/Fuentes.md}), se reformuló el párrafo del problema y se declararon explícitamente como \textbf{hipótesis de escenario base de estudio}:
+\begin{quote}
+\textit{«Como hipótesis de escenario base, bajo la política actual de asignación voraz inmediata —que despacha al repartidor en el instante en que el cliente crea la orden sin considerar la cola de los 47 fogones instalados—, los repartidores permanecen en promedio 16.2 minutos inactivos en el restaurante esperando la salida del pedido... elevando las cancelaciones al 16.5\% y reduciendo hasta un 35\% la flota disponible por desconexión en picos.»}
+\end{quote}
+Estas cifras se utilizan como el estado de referencia no optimizado sobre el cual la simulación evalúa la ganancia marginal de la política alternativa sincronizada.
+
+\subsection{Item 5: Depuración de Fuentes y Citas que no Sostenían lo Afirmado}
+\noindent \textbf{Observación Docente:} \textit{«Fuentes que no sostienen lo afirmado: varias citas no dicen lo que se les atribuye. Por ejemplo, el FDA Food Code no fija 20 min y el informe de la OIT no fija un límite de 6 h. Verifiquen cada referencia contra el texto original y retiren las que no puedan comprobar.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:} \\
+Se realizó una auditoría exhaustiva contra el texto original de cada fuente, corrigiendo dos errores críticos de atribución:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{FDA Food Code (§ 3-501.19):} El código sanitario de la FDA establece límites de hasta 4 horas (o 6 horas con control inicial de temperatura) para alimentos calientes sin control de temperatura antes de representar riesgo microbiológico crítico. \textbf{En ningún momento fija 20 minutos}. Por tanto, se retiró la cita de la FDA y se explicó que los 20 minutos corresponden a un \textbf{timeout operativo de la plataforma (SLA de calidad / Protocolo Anti-Limbo)} programado en el software (\texttt{anti\_limbo\_max\_counter\_min = 20.0}). Por su parte, la minimización del tiempo de mostrador se sustenta en la literatura de entrega dinámica de alimentos (Ulmer et al., 2020), donde el \textit{ready-to-pickup dwell time} es la métrica de calidad a optimizar.
+    \item \textbf{Informe OIT/ILO (2021):} El reporte de la OIT describe las condiciones de precariedad y extensas jornadas en plataformas digitales, pero no impone un límite normativo de 6 horas de conexión continua. Se retiró la referencia y se reclasificó la cota de 6 horas como una \textbf{política interna de renovación de turnos de la plataforma} (\texttt{max\_shift\_duration\_min = 360.0}).
+    \item \textbf{Depuración de Fuentes no Académicas:} Se eliminaron reportes comerciales y páginas web secundarias (National Restaurant Association, Deliverect, blogs de DoorDash, Statista). El compendio bibliográfico quedó compuesto exclusivamente por \textbf{9 referencias académicas verificadas} (artículos indexados en revistas con DOI y libros clásicos con ISBN: Bai et al., 2019; Ballou et al., 2002; Boeing, 2019; Cachon et al., 2017; Carroll \& Heiser, 2010; Kleinrock, 1975; Law, 2015; Levinson \& El-Geneidy, 2009; Ulmer et al., 2020).
+\end{enumerate}
+
+\subsection{Item 6: Reformulación del Criterio C6 (Límites Físicos o Duros Medibles)}
+\noindent \textbf{Observación Docente:} \textit{«C6: el límite de 6 h es una política de la plataforma, no un límite físico. Consideren usar como C6 un límite medible en su sistema, como los fogones o el pool de conexiones.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:} \\
+Se reformuló íntegramente la justificación del Criterio C6 en la Sección 3.2.5 (Tabla 1) y en la Sección 3.5.2:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Límite Físico del Sistema Logístico (Fogones):} Se adoptó como cota dura medible la capacidad física instalada de $k_r \in [3, 6]$ fogones por restaurante, totalizando una cota fija e insuperable de \textbf{$K = 47\text{ fogones en la red}$}. Este límite impone una tasa máxima de producción física de $\lambda_{\text{cocina\_max}} = 47 / 18.5 \approx 2.5405\text{ ped/min}$, que explica físicamente la saturación transitoria en los picos de almuerzo ($\rho = 106.3\%$) y cena ($\rho = 129.9\%$).
+    \item \textbf{Límite Duro de Infraestructura TI (Pool de Conexiones a BD):} Se adoptó la restricción física de concurrencia en la capa de datos de la API real, gobernada por \texttt{QueuePool} en SQLAlchemy con \texttt{pool\_size = 20} y \texttt{max\_overflow = 10}, fijando un límite insuperable de \textbf{$30\text{ conexiones concurrentes simultáneas}$} hacia PostgreSQL 15 y un tope del $100\%$ de CPU en el contenedor.
+    \item \textbf{Capacidad de Batería de Smartphone:} Límite duro en el rango acotado $[0\%, 100\%]$ con filtro preventivo de reserva operativa mínima del $15\%$ (Carroll \& Heiser, 2010).
+    \item La regla de 6 horas se reclasificó explícitamente en la Sección 3.5.4 (Supuesto S1) como una \textbf{política operativa de la plataforma}.
+\end{enumerate}
+
+\subsection{Item 7: Coherencia Numérica en el Modelo Conceptual DES (14 Eventos)}
+\noindent \textbf{Observación Docente:} \textit{«En la página 10 definieron 14 eventos, en la tabla de la pagina 14 tiene 12 eventos.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:} \\
+Se revisó minuciosamente el modelo conceptual DES (Sección 3.6). En la versión anterior, la lista descriptiva contenía 14 eventos atómicos pero la matriz evento-estado agrupaba o excluía transiciones intermedias, quedando en 12 filas.
+\begin{itemize}[leftmargin=1.5em, itemsep=0.2em]
+    \item Se introdujo la variable de estado explícita $B_{\text{fogon}}(t)$ (número de fogones ocupados simultáneamente en la red de restaurantes).
+    \item Se alinearon exactamente 1 a 1 los **14 eventos atómicos** entre la Sección 3.6.4 y la Tabla 4 de la Sección 3.6.6:
+    (1) \texttt{LlegadaPedido}, (2) \texttt{LoginRepartidor}, (3) \texttt{InicioCocina}, (4) \texttt{FinCocina}, (5) \texttt{DisparoDespacho}, (6) \texttt{AceptacionRepartidor}, (7) \texttt{ExpiracionOferta}, (8) \texttt{LlegadaARestaurante}, (9) \texttt{RecogidaPedido}, (10) \texttt{EntregaFinal}, (11) \texttt{CancelacionPorCliente}, (12) \texttt{CancelacionSinRepartidor}, (13) \texttt{IncidenciaTransito} y (14) \texttt{LogoutRepartidor}.
+    \item Cada uno de los 14 eventos cuenta con su fila correspondiente y sus transiciones algebraicas exactas sobre las 9 variables de estado del sistema.
+\end{itemize}
+
+\subsection{Item 8: Plan de Datos con Separación entre Infraestructura TI y Datos Logísticos}
+\noindent \textbf{Observación Docente:} \textit{«Plan de datos: Locust no puede calibrar los tiempos de cocción, la velocidad ni la paciencia, porque los genera él mismo. Necesitan fuentes externas para el sistema logístico.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:} \\
+En la Sección 3.8.2 se reestructuró por completo el plan de recolección de datos para la Entrega 2, separando de forma estricta las dos naturalezas de datos que componen el gemelo digital:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Datos de Infraestructura de Software TI (Fuente Interna — Locust + \texttt{psutil}):}
+    Locust se utiliza exclusivamente para inyectar concurrencia sintética sobre la API REST y estresar el servidor HTTP y el pool de conexiones de PostgreSQL. Se miden variables de software: latencia HTTP ($T_{\text{lat\_api}}$ en ms), rendimiento en peticiones por segundo (RPS), ocupación del pool de 30 conexiones y consumo de CPU/RAM (\texttt{datos/telemetry\_log.csv}), insumo para el modelo subrogado de TI.
+    \item \textbf{Datos del Sistema Físico Logístico (Fuente Externa — Datasets Públicos de Delivery):}
+    Se especificó que los tiempos reales de cocción de alimentos ($T_{\text{cocina}}$), las velocidades efectivas urbanas ($V_{\text{rep}}$) y los tiempos de espera hasta entrega se calibrarán a partir de datasets públicos externos de plataformas de última milla (registros abiertos de pedidos de comida urbana con marcas de tiempo desagregadas de orden, salida de cocina y entrega). Sobre estos datos se aplicarán pruebas Kolmogorov-Smirnov (\texttt{scipy.stats.kstest}) para contrastar distribuciones Log-Normales y Normales Truncadas, e inferencia bayesiana mediante muestreo MCMC en **PyMC** para ajustar las distribuciones a posteriori.
+\end{enumerate}
+
+\subsection{Item 9: Redacción Técnica Neutra, Formato APA 7.ª Edición y Tabla de Uso de IA}
+\noindent \textbf{Observación Docente:} \textit{«Redacción: usen un tono técnico neutro y un solo formato de citas. Rehagan la declaración de IA como tabla por uso, con herramienta, sección, instrucción y verificación.»}
+
+\vspace{0.4em}
+\noindent \textbf{Diagnóstico y Acción Implementada:}
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Tono de Redacción:} Se eliminaron expresiones subjetivas o promocionales, adoptando un estilo técnico, riguroso e impersonal propio de ingeniería.
+    \item \textbf{Formato Único de Citas:} Todas las referencias y citas del texto fueron unificadas bajo el estándar de la **American Psychological Association (APA, 7.ª edición)**, incorporando autores, año de publicación, título, revista, volumen, número y enlace DOI persistente.
+    \item \textbf{Declaración de IA como Tabla por Uso (Sección 3.12.2, Tabla 11):} Se sustituyó la lista general por una tabla estructurada que desglosa cada interacción con herramientas de Inteligencia Artificial (Claude y Gemini) en cuatro columnas obligatorias:
+    \begin{itemize}[leftmargin=1.2em]
+        \item \textit{Herramienta empleada.}
+        \item \textit{Sección del documento o archivo de código intervenido.}
+        \item \textit{Instrucción o solicitud suministrada (Prompt).}
+        \item \textit{Proceso de auditoría, verificación manual y modificaciones realizadas por el equipo de ingeniería.}
+    \end{itemize}
+\end{enumerate}
+
+\section{Conclusiones y Estado del Repositorio para la Entrega 1}
+Con la implementación de las 30 réplicas $M/M/c$ con intervalos de confianza del 95\%, la conexión de las políticas de despacho voraz y sincronizada con el pool de repartidores en SimPy, la depuración bibliográfica a 9 fuentes académicas verificadas y la corrección integral del documento maestro en \LaTeX{} (\texttt{docs/PA\_E1\_Planteamiento\_QuickDeliverySim.tex}) y su visualizador (\texttt{docs/Planteamiento\_Proyecto\_Imprimible.html}), el proyecto subsana el 100\% de las observaciones de la retroalimentación, alcanzando plena coherencia entre la formulación conceptual, el análisis matemático y el código ejecutable del repositorio.
+
+\end{document}

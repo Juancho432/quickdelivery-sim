@@ -1,6 +1,3 @@
-from pydantic import BaseModel, Field
-
-
 class SystemConfiguration:
     def __init__(self):
         self.active_dispatch_policy: str = "synchronized"  # "synchronized" o "greedy"

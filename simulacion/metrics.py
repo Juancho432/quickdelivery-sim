@@ -86,16 +86,11 @@ class MetricsCollector:
         print(f"Métricas extraídas exitosamente. Resultados guardados en: {ruta_archivo}")
 
 if __name__ == "__main__":
-    # Prueba unitaria para validar que numpy y el exportador funcionan
+    # Validacion unitaria de calculo de percentiles y KPIs con NumPy
     recolector = MetricsCollector()
-    
-    # Simulamos 3 pedidos ingresando datos falsos de prueba
-    recolector.registrar_pedido_completado(0, 15, 12, 30) # Repartidor esperó 3 min
-    recolector.registrar_pedido_completado(10, 30, 35, 45) # Comida esperó 5 min
-    recolector.registrar_cancelacion() # Cliente se hartó
-    
+    recolector.registrar_pedido_completado(0, 15, 12, 30)
+    recolector.registrar_pedido_completado(10, 30, 35, 45)
+    recolector.registrar_cancelacion()
     recolector.registrar_utilizacion_flota(80.5)
     recolector.registrar_utilizacion_flota(85.0)
-    
-    # Exportamos para ver si crea el archivo
-    recolector.exportar_json()
+    print("KPIs de prueba calculados:", recolector.calcular_kpis())
