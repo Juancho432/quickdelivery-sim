@@ -1,0 +1,498 @@
+\documentclass[11pt,letterpaper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[spanish,es-tabla]{babel}
+\usepackage[margin=2.0cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows, positioning}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small QuickDelivery Sim — Planteamiento de Proyecto (E1)}
+\lhead{\small Modelado y Simulación Estocástica}
+\cfoot{\thepage}
+
+\title{\textbf{\Large PROYECTO DE AULA — ENTREGA PARCIAL 1}\\[0.3em]
+\textbf{\large Documento de Planteamiento: Gemelo Digital y Simulación Estocástica de una Plataforma de Pedidos a Domicilio (\textit{QuickDelivery Sim})}}
+\author{\textbf{Juan Manuel Jaramillo} (Infraestructura y DevOps) \\
+\textbf{Sebastian Echeverri} (Modelado y Simulación DES) \\
+\textbf{Emmanuel Mora} (Análisis de Datos, Modelos Matemáticos y Calibración)}
+\date{\textbf{Repositorio Oficial:} \url{https://github.com/Juancho432/quickdelivery-sim}}
+
+\begin{document}
+
+\maketitle
+
+\section{Identificación del Proyecto y Equipo de Trabajo (3.1)}
+
+\begin{itemize}[leftmargin=1.5em, itemsep=0.3em]
+    \item \textbf{Nombre del Proyecto:} \textit{Gemelo Digital y Simulación Estocástica para la Optimización de Despacho Sincronizado y Gestión de Flota Abierta en Plataformas de Pedidos a Domicilio (QuickDelivery Sim)}.
+    \item \textbf{Integrantes del Grupo:}
+    \begin{enumerate}[leftmargin=1.2em, itemsep=0.2em]
+        \item \textbf{Juan Manuel Jaramillo — Líder de Infraestructura y DevOps:} Diseño e implementación de la API REST mínima en FastAPI, persistencia en PostgreSQL 15 con pool acotado de conexiones, orquestación en Docker Compose, instrumentación de telemetría de recursos (CPU, RAM y latencias HTTP) y pruebas de carga sintética con Locust.
+        \item \textbf{Sebastian Echeverri — Líder de Modelado y Simulación Estocástica:} Formalización del modelo conceptual DES (entidades, recursos, variables de estado y 14 eventos atómicos), implementación del motor en SimPy (\texttt{simulacion/simpy\_engine.py}) conectado al pool dinámico de repartidores (\texttt{CourierPool}), y codificación de las políticas de despacho bajo el patrón Strategy.
+        \item \textbf{Emmanuel Mora — Líder de Análisis de Datos, Modelos Matemáticos y Calibración:} Formulación analítica de teoría de colas ($M/M/c$), deducción de Erlang-C y verificación de la Ley de Little, contraste estadístico de 30 réplicas con intervalos de confianza del 95\% frente a la Tabla 5 (\texttt{analisis/contrast\_analysis.py}), definición de KPIs con percentiles ($p95/p99$), diseño POO y plan de calibración logística con datos externos.
+    \end{enumerate}
+    \item \textbf{Enlace al Repositorio de Control de Versiones:} \url{https://github.com/Juancho432/quickdelivery-sim}
+\end{itemize}
+
+\section{Descripción del Sistema Objeto de Estudio (3.2)}
+
+\subsection{Contexto de Negocio, Actores y Toma de Decisiones}
+El sistema objeto de estudio es una \textbf{plataforma de comercio electrónico y entrega de última milla} que opera en un entorno urbano continuo de \textbf{24 horas} (Ulmer et al., 2020). La plataforma actúa como un orquestador de software que coordina tres actores:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Clientes:} Consumidores que emiten pedidos a lo largo del día, consultan el avance del repartidor mediante el servicio de rastreo y presentan umbrales finitos de tolerancia a la espera, pudiendo cancelar su orden si la demora acumulada supera su paciencia máxima (Bai et al., 2019).
+    \item \textbf{Restaurantes Asociados:} 10 locales comerciales fijos que reciben comandas, disponen de una capacidad finita de puestos de cocción simultáneos ($k_r \in [3, 6]$ fogones) y operan con tiempos de preparación estocásticos (Ulmer et al., 2020).
+    \item \textbf{Repartidores Autónomos (Flota Abierta):} Conductores independientes que deciden cuándo conectarse (\textit{login}) y desconectarse (\textit{logout}) del sistema (Cachon et al., 2017). Durante su turno activo, reciben ofertas de viaje con una ventana de 45 segundos para aceptar o rechazar, trasladándose al restaurante para retirar el pedido y luego al domicilio del cliente.
+\end{enumerate}
+
+\noindent \textbf{¿Quién toma la decisión de ingeniería?} \\
+La decisión recae en el \textbf{Gerente de Operaciones Logísticas} y el \textbf{Líder de Ingeniería de Plataforma}. Su propósito es seleccionar la \textbf{política algorítmica del motor de despacho} y el \textbf{esquema de incentivos} para reducir el tiempo ocioso del repartidor en el restaurante, disminuir el percentil 95 del tiempo de ciclo y contener las cancelaciones durante las horas de alta congestión.
+
+\subsection{Comportamiento del Flujo y Cuellos de Botella}
+\begin{itemize}[leftmargin=1.5em, itemsep=0.3em]
+    \item \textbf{Qué Fluye:} Órdenes de pedido (entidades que transitan desde solicitudes HTTP en la API, comandas en cocina, paquetes en mostrador, hasta entregas físicas en tránsito) y mensajes de telemetría GPS asociados al seguimiento de cada orden.
+    \item \textbf{Qué Espera (Colas de Contención):}
+    \begin{itemize}[leftmargin=1.2em]
+        \item \textit{Cola de Cocina:} Los pedidos esperan la liberación de un fogón cuando los $k_r$ puestos del restaurante se encuentran ocupados.
+        \item \textit{Cola de Despacho:} Los pedidos esperan en el motor de asignación hasta que un repartidor disponible en el pool es asignado.
+        \item \textit{Espera en Mostrador de Recogida:} Si el repartidor arriba antes de finalizar la cocción, espera inactivo en el local; si la comida sale antes de que arribe el repartidor, el pedido espera en mostrador perdiendo temperatura.
+    \end{itemize}
+    \item \textbf{Qué se Satura:}
+    \begin{itemize}[leftmargin=1.2em]
+        \item \textit{Plano físico-logístico (Picos de Almuerzo 11:30–14:30 y Cena 18:30–22:00):} Se satura la capacidad física de los fogones en los restaurantes ($\rho_{\text{cocina}} > 1$) y, bajo asignación voraz inmediata, se agota el pool de repartidores libres debido al tiempo improductivo de espera en mostrador.
+        \item \textit{Plano de infraestructura TI:} Bajo ráfagas concurrentes, contiende el pool de conexiones hacia PostgreSQL y los workers del servidor HTTP.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Arquitectura del Sistema Real Mínimo}
+El sistema real mínimo desplegable se compone de microservicios contenerizados con Docker Compose:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{API REST de Ingestión (\texttt{Order Management}):} Recibe las órdenes y valida la capacidad culinaria disponible.
+    \item \textbf{Motor de Despacho (\texttt{Dispatch Engine}):} Evalúa las órdenes pendientes frente al pool de repartidores disponibles, aplicando la política configurada (Voraz Inmediata vs. Despacho Sincronizado).
+    \item \textbf{Servicio de Rastreo (\texttt{Tracking Service}):} Almacena las actualizaciones de posición de los repartidores y responde consultas de seguimiento.
+    \item \textbf{Base de Datos Relacional (\texttt{PostgreSQL 15}):} Persiste órdenes, restaurantes, repartidores y trazas GPS a través de un pool acotado (\texttt{QueuePool} con \texttt{pool\_size = 20} y \texttt{max\_overflow = 10}, cota de 30 conexiones simultáneas).
+    \item \textbf{Middleware de Telemetría:} Registra por cada petición HTTP la latencia en milisegundos y el consumo de CPU y memoria RAM con \texttt{psutil}.
+\end{enumerate}
+
+\subsection{Clasificación Taxonómica del Modelo de Simulación}
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Discreto vs. Continuo $\rightarrow$ DISCRETO:} Las variables de estado cambian únicamente en instantes puntuales del tiempo marcados por la ocurrencia de eventos atómicos (\texttt{LlegadaPedido}, \texttt{FinCocina}, \texttt{AceptacionRepartidor}, \texttt{EntregaFinal}) (Law, 2015).
+    \item \textbf{Estático vs. Dinámico $\rightarrow$ DINÁMICO:} El modelo evoluciona en un horizonte continuo de 24 horas ($1.440\text{ min}$), donde el estado en cualquier instante depende de las acumulaciones transitorias de colas previas.
+    \item \textbf{Determinista vs. Estocástico $\rightarrow$ ESTOCÁSTICO:} Tiempos entre llegadas, tiempos de cocción, velocidades de desplazamiento y umbrales de abandono se modelan mediante variables aleatorias con distribuciones de probabilidad.
+    \item \textbf{Empírico vs. Mecanístico $\rightarrow$ MECANÍSTICO:} Modela explícitamente las relaciones causales de balance de flujo, capacidad de servidores en serie y reglas de asignación entre órdenes, cocinas y repartidores.
+\end{enumerate}
+
+\subsection{Tabla de Cumplimiento de Criterios de Elegibilidad (C1 a C7)}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Matriz de cumplimiento de criterios de elegibilidad del sistema (C1 a C7).}
+\begin{tabularx}{\textwidth}{p{3.2cm} p{3.8cm} X}
+\toprule
+\textbf{Criterio} & \textbf{Exigencia del Curso} & \textbf{Cumplimiento y Evidencia en este Proyecto} \\
+\midrule
+\textbf{C1: Contención por recursos finitos} & Sistema TI o software con colas y recursos limitados. & \textbf{Triple contención modelada:} Pool finito de conexiones a PostgreSQL (\texttt{QueuePool}, máx. 30) y workers de Uvicorn; capacidad física de cocción en 10 restaurantes ($k_r \in [3, 6]$ fogones, total 47); y pool de repartidores conectados ($c(t)$). \\
+\addlinespace
+\textbf{C2: Sistema real mínimo desplegable} & API REST en contenedor con $\ge 2$ servicios y $\ge 3$ endpoints propios. & \textbf{Arquitectura en Docker Compose (\texttt{api} + \texttt{db: postgres:15-alpine})} con 13 endpoints propios (\texttt{POST /orders/}, \texttt{POST /orders/\{id\}/ready}, \texttt{GET /couriers/\{id\}/offers}, \texttt{POST /orders/\{id\}/accept}, \texttt{GET /orders/\{id\}/tracking}, entre otros). \\
+\addlinespace
+\textbf{C3: $\ge 3$ etapas de servicio y regla de prioridad} & Red de colas con $\ge 3$ etapas y reglas de prioridad o tipología. & \textbf{3 Etapas en Serie:} (1) Recepción y validación en API/BD, (2) Preparación en fogones, (3) Asignación, recogida y entrega con rastreo. \textbf{Prioridad:} Pedidos listos en mostrador (\texttt{LISTO\_EN\_MOSTRADOR}) reciben bono tarifario del +20\% y prioridad sobre comandas recién creadas. \\
+\addlinespace
+\textbf{C4: Variable de decisión controlable} & Política o regla de control clara (actual vs. alternativa). & \textbf{Política de Despacho (\texttt{DispatchPolicy}):} \textit{Política Actual:} Asignación Voraz Inmediata vs. \textit{Política Alternativa:} Despacho Sincronizado Predictivo ($t_{\text{despacho}} = \text{ETA}_{\text{listo}} - t_{\text{viaje}} - \Delta t_{\text{buffer}}$). \\
+\addlinespace
+\textbf{C5: Llegadas no estacionarias} & Picos, estacionalidad o ráfagas que justifiquen análisis dinámico. & \textbf{Proceso NHPP ($\approx 1.893\text{ ped/día}$ en 7 franjas):} Alternancia entre valles ($\rho_{\text{cocina}} = 6\%$) y picos de sobrecarga culinaria en almuerzo ($\lambda = 2.70\text{ ped/min}$, $\rho = 106\%$) y cena ($\lambda = 3.30\text{ ped/min}$, $\rho = 130\%$). \\
+\addlinespace
+\textbf{C6: Límite físico o duro medible} & Cota física o dura medible que condiciona el comportamiento. & \textbf{Límites medibles del sistema:} (1) \textit{Capacidad física de fogones:} $K = 47$ fogones fijos en la red ($\lambda_{\text{cocina\_max}} = 2.54\text{ ped/min}$); (2) \textit{Pool de conexiones a BD:} límite duro de 30 conexiones simultáneas y CPU ($100\%$); (3) \textit{Batería de smartphone:} rango $[0\%, 100\%]$ con reserva mínima del $15\%$ (Carroll \& Heiser, 2010). *(El turno de 6 h se clasifica como política operativa de la plataforma).* \\
+\addlinespace
+\textbf{C7: Actores autónomos para ABM} & Actores con comportamiento adaptativo y toma de decisiones. & \textbf{Repartidores:} Conectan/desconectan según incentivos y evalúan ofertas en 45 s. \textbf{Clientes:} Monitorean rastreo GPS y cancelan según función estocástica de impaciencia (Bai et al., 2019). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Problema y Preguntas de Decisión (3.3)}
+
+\subsection{Enunciado del Problema}
+\begin{quote}
+\textit{En el escenario base de estudio de la plataforma de entregas urbanas, donde los repartidores operan bajo un esquema de flota abierta y la plataforma aplica una política operativa de desconexión tras 6 horas continuas de sesión o cuando la batería del dispositivo desciende al 15\%, el sistema presenta saturación durante los picos de almuerzo (11:30–14:30) y cena (18:30–22:00). Como \textbf{hipótesis de escenario base}, bajo la política actual de asignación voraz inmediata —que despacha al repartidor en el instante en que el cliente crea la orden sin considerar la cola de los 47 fogones instalados—, los repartidores permanecen en promedio $16.2\text{ minutos}$ inactivos en el restaurante esperando la salida del pedido, el percentil 95 del tiempo de ciclo total ($W_{\text{total\_p95}}$) supera los $55\text{ minutos}$, la tasa de cancelación alcanza el $16.5\%$ y las desconexiones anticipadas por consumo de batería e inactividad reducen hasta un $35\%$ la flota activa en horas pico. La gerencia de ingeniería requiere evaluar mediante simulación si sustituir la asignación voraz por una política de despacho sincronizado con el tiempo estimado de finalización en cocina ($\text{ETA}_{\text{listo}}$) permite reducir el tiempo ocioso del repartidor en el local, preservar la capacidad efectiva del pool de repartidores y disminuir las cancelaciones.}
+\end{quote}
+
+\subsection{Preguntas de Decisión Cuantitativas}
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.4em]
+    \item \textbf{Pregunta 1 (Sincronización y Productividad de Flota):} ¿En qué porcentaje se reduce el tiempo promedio de espera ociosa del repartidor en el restaurante ($\bar{T}_{\text{espera\_rest}}$, meta: $\le 3.5\text{ min}$) y cómo varía el número de pedidos completados al sustituir la política actual de asignación voraz inmediata por la política alternativa de despacho sincronizado predictivo ($t_{\text{despacho}} = \text{ETA}_{\text{listo}} - t_{\text{viaje}} - \Delta t_{\text{buffer}}$) durante una jornada de 24 horas?
+    \item \textbf{Pregunta 2 (Dimensionamiento de Flota en Hora Pico):} ¿Cuál es el tamaño mínimo del pool de repartidores activos conectados ($c_{\min}(t) \in [75, 95]$) que debe mantenerse en el pico de cena (18:30–22:00, $\lambda = 3.30\text{ ped/min}$) bajo despacho sincronizado frente a despacho voraz para sostener una utilización de flota ($\rho_{\text{rep}}$) entre el $75\%$ y el $85\%$, manteniendo $W_{\text{total\_p95}} \le 40\text{ min}$ y una tasa de cancelación inferior al $3\%$?
+    \item \textbf{Pregunta 3 (Frecuencia de Telemetría, Batería y Pool de Conexiones TI):} ¿Qué efecto tiene modificar el intervalo de actualización de telemetría GPS del repartidor (sondeo cada $5\text{ s}$ frente a la alternativa de $15\text{ s}$) sobre el consumo acumulado de batería del dispositivo móvil y sobre el percentil 99 de latencia HTTP ($T_{\text{lat\_api\_p99}} \le 180\text{ ms}$) y la ocupación del pool de 30 conexiones de PostgreSQL bajo carga en Locust?
+    \item \textbf{Pregunta 4 (Margen de Holgura Cocina–Despacho):} ¿Cuál es el valor del margen de holgura temporal ($\Delta t_{\text{buffer}} \in [0, 5]\text{ min}$) en la regla de despacho sincronizado que minimiza conjuntamente el tiempo de espera del repartidor en el local ($\bar{T}_{\text{espera\_rest}}$) y el percentil 95 del tiempo de permanencia de la comida en mostrador ($T_{\text{mostrador\_p95}} \le 6.0\text{ min}$)?
+\end{enumerate}
+
+\section{Objetivos del Proyecto (3.4)}
+
+\subsection{Objetivo General}
+Desarrollar un gemelo digital estocástico basado en simulación de eventos discretos (DES) y modelado multiagente (ABM) para una plataforma de pedidos a domicilio en un horizonte de 24 horas, con el fin de comparar cuantitativamente políticas de despacho de repartidores y dimensionamiento de recursos frente a restricciones físicas de capacidad de cocina, batería y conexiones de base de datos.
+
+\subsection{Objetivos Específicos}
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.3em]
+    \item \textbf{Para la Entrega 1 (Semanas 1–7):} Formalizar el modelo conceptual DES con sus entidades, recursos, variables de estado y 14 eventos atómicos; analizar el subsistema de despacho mediante teoría de colas ($M/M/c$) y contrastar la Tabla 5 contra 30 réplicas del simulador SimPy con intervalos de confianza del 95\%; conectar la política voraz y la política sincronizada con un pool de repartidores en SimPy; y desplegar la API REST mínima en Docker Compose con PostgreSQL 15 y captura de telemetría base.
+    \item \textbf{Para la Entrega 2 (Semanas 8–12):} Ejecutar pruebas de carga en Locust contra la API REST para medir la degradación de latencias HTTP y la saturación del pool de conexiones bajo concurrencia; calibrar las distribuciones logísticas del simulador (tiempos de cocción, velocidades urbanas y tiempos de espera) a partir de datasets públicos externos de entregas a domicilio mediante pruebas Kolmogorov-Smirnov e inferencia bayesiana en PyMC; e implementar un modelo subrogado que respete las cotas duras del sistema (capacidad de 47 fogones, límite de 30 conexiones de BD y descarga de batería).
+    \item \textbf{Para la Entrega Final (Semanas 13–16):} Construir el componente multiagente en el framework Mesa para modelar las decisiones autónomas de repartidores y clientes; acoplar el simulador con la API del sistema real; y evaluar un agente de decisión que ajuste dinámicamente la política de despacho durante la demostración en vivo.
+\end{enumerate}
+
+\section{Alcance, Delimitación y Supuestos Iniciales (3.5)}
+
+\subsection{Alcance del Modelo: Inclusiones y Exclusiones Justificadas}
+El modelo incluye la generación de pedidos mediante NHPP en 7 franjas horarias (Law, 2015), la capacidad finita de 47 fogones en 10 locales ($k_r \in [3, 6]$), la política voraz y sincronizada bajo el patrón Strategy conectadas al pool de repartidores, cinemática vial urbana con sinuosidad $\tau = 1.25$ (Ballou et al., 2002; Levinson \& El-Geneidy, 2009), gestión de batería con reserva del 15\% (Carroll \& Heiser, 2010), cancelaciones estocásticas por impaciencia Weibull (Bai et al., 2019) e infraestructura TI en Docker Compose con pool acotado a 30 conexiones.
+
+\noindent Se delimitan 15 exclusiones justificadas en 5 dominios operativos:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.15em]
+    \item \textit{Comensales en salón:} Capacidad de fogones dedicada exclusivamente a la plataforma ($k_r$).
+    \item \textit{Desglose de ingredientes:} Pedido tratado como unidad agregada de cocción Log-Normal.
+    \item \textit{Empaque separado:} Tiempo de empaque absorbido en la preparación en cocina.
+    \item \textit{Semáforos individuales:} Cinemática mesoscópica con sinuosidad $\tau = 1.25$ y velocidad agregada.
+    \item \textit{Combustible de vehículos:} Autonomía de moto ($> 200\text{ km}$) no es restrictiva frente a batería de smartphone.
+    \item \textit{Mantenimiento programado:} Escala de semanas/meses excede el ciclo diario de 24 horas.
+    \item \textit{Rutas intermunicipales:} Cuadrante urbano delimitado a $6\text{ km} \times 6\text{ km}$ ($36\text{ km}^2$).
+    \item \textit{Multientrega (Batching):} Asignación 1 a 1 para evaluar de forma pura la sincronización temporal.
+    \item \textit{Ascensores y portería:} Hito de entrega fijado en acceso geodésico del domicilio.
+    \item \textit{Clima dinámico:} Supuesto \textit{ceteris paribus} para comparar algoritmos de despacho en igualdad de condiciones.
+    \item \textit{Membresías VIP:} Disciplina en fogones FIFO pura sin prioridad comercial paga.
+    \item \textit{Pasarela de pagos:} Validación financiera resuelta en $< 1\text{ s}$ al crearse la orden.
+    \item \textit{Intermitencia celular:} Cobertura continua de datos 4G/5G en el cuadrante metropolitano.
+    \item \textit{Facturación y tributos:} Procesos contables asíncronos fuera de la ruta crítica de despacho.
+    \item \textit{Calificaciones cualitativas:} Nivel de servicio evaluado mediante métricas objetivas ($W_{\text{p95}}, P_{\text{canc}}$).
+\end{enumerate}
+
+\subsection{Espacio Geográfico, Cinemática Vial y Capacidad Culinaria}
+\begin{itemize}[leftmargin=1.5em, itemsep=0.3em]
+    \item \textbf{Métrica Vial con Sinuosidad ($\tau = 1.25$):} Basado en estudios sobre circuidad vial (Ballou et al., 2002; Boeing, 2019; Levinson \& El-Geneidy, 2009):
+    \begin{equation}
+        d_{\text{vial}} = 1.25 \times \left( |x_{\text{destino}} - x_{\text{origen}}| + |y_{\text{destino}} - y_{\text{origen}}| \right)
+    \end{equation}
+    \item \textbf{Cinemática y Batería:} Velocidad del repartidor modelada como $V_{\text{rep}} \sim \mathcal{N}(18, 3)\text{ km/h}$ truncada en $[8, 25]\text{ km/h}$. Drenaje de batería parametrizado según Carroll y Heiser (2010) en $0.15\%/\text{min}$ en marcha y $0.05\%/\text{min}$ en espera, con reserva mínima operativa del $15\%$.
+    \item \textbf{Capacidad Física de Fogones ($K = 47$ fogones, Criterio C6):} 10 restaurantes con $k_r \in [3, 6]$ fogones simultáneos. Con tiempo medio de cocción de $18.5\text{ min}$, la capacidad asintótica de la red culinaria es (Kleinrock, 1975):
+    \begin{equation}
+        \lambda_{\text{cocina\_max}} = \frac{\sum_{r=1}^{10} k_r}{\bar{T}_{\text{cocina}}} = \frac{47}{18.5} \approx \mathbf{2.5405\text{ pedidos/minuto}} \quad (152.4\text{ ped/h})
+    \end{equation}
+    \item \textbf{Regla de Despacho Sincronizado:}
+    \begin{equation}
+        t_{\text{despacho}} = \max\left(t_{\text{actual}},\, \text{ETA}_{\text{listo}} - t_{\text{viaje\_repartidor}} - \Delta t_{\text{buffer}}\right)
+    \end{equation}
+\end{itemize}
+
+\subsection{Tabla de Supuestos Iniciales}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Supuestos iniciales del modelo, fuente o naturaleza del supuesto e impacto.}
+\begin{tabularx}{\textwidth}{c p{3.8cm} p{3.5cm} p{3.5cm} X}
+\toprule
+\textbf{\#} & \textbf{Supuesto Inicial} & \textbf{Justificación Técnica} & \textbf{Fuente / Naturaleza} & \textbf{Impacto si Resulta Falso} \\
+\midrule
+\textbf{S1} & Turno continuo máximo de 6 h ($T_{\max} = 360\text{ min}$). & Política operativa de la plataforma para renovación de turnos en flota abierta. & Política operativa de plataforma (\texttt{config.py}). & Disponibilidad de flota dependería únicamente de drenaje de batería. \\
+\addlinespace
+\textbf{S2} & Tiempos de cocción Log-Normal ($\mu_{\ln}=2.85, \sigma_{\ln}=0.35$). & Proceso positivo con asimetría derecha por platos complejos. & Forma: Law (2015), Ulmer et al. (2020); valores: hipótesis de escenario. & Subestimaría la varianza de colas en los 47 fogones y la precisión del $\text{ETA}_{\text{listo}}$. \\
+\addlinespace
+\textbf{S3} & Demanda NHPP con pico máximo en cena ($3.30\text{ ped/min}$). & Modula regímenes de holgura y picos de sobrecarga ($\rho > 1$). & Metodología NHPP: Law (2015); tasas: hipótesis de escenario. & Si fuera plana, no se formarían colas transitorias ni se justificaría simular. \\
+\addlinespace
+\textbf{S4} & Abandono del cliente según Weibull ($k=2.4, \lambda_w=40\text{ min}$). & Parámetro $k > 1$ modela tasa de riesgo creciente con la demora. & Fundamento: Bai et al. (2019), Law (2015); valores: hipótesis de escenario. & Asumir paciencia infinita impediría cuantificar pérdidas de ventas en picos. \\
+\addlinespace
+\textbf{S5} & Velocidad urbana $\mathcal{N}(18, 3)$ truncada en $[8, 25]\text{ km/h}$. & Refleja cinemática en arterias urbanas con tráfico mixto. & Hipótesis de escenario (a calibrar con datos externos en E2). & Alteraría tiempos de viaje y utilización calculada del pool de repartidores. \\
+\addlinespace
+\textbf{S6} & Timeout de 45 s y bono urgente del +20\% en mostrador. & Estándar operativo móvil e incentivo tarifario para pedidos cocinados. & Regla operativa de plataforma; precios dinámicos: Cachon et al. (2017). & Un timeout mayor aumentaría el retardo de reasignación ante rechazos. \\
+\addlinespace
+\textbf{S7} & Sinuosidad vial urbana $\tau = 1.25$ sobre Manhattan. & Compensa sentidos de vías y desvíos urbanos frente a cuadrícula ideal. & Ballou et al. (2002); Boeing (2019); Levinson \& El-Geneidy (2009). & Omitir el factor ($\tau=1.0$) subestimaría distancias y tiempos de viaje en 20\%. \\
+\addlinespace
+\textbf{S8} & Elección equiprobable de restaurante ($R_i \sim \mathcal{U}\{1, 10\}$). & Demanda distribuida uniformemente entre los 10 locales de la zona. & Supuesto estándar de desacoplamiento (Kleinrock, 1975). & Concentrar demanda saturaría locales con 3 fogones y dejaría otros ociosos. \\
+\addlinespace
+\textbf{S9} & Umbrales de 6 min (enfriamiento) y 20 min (timeout de mostrador). & SLA de calidad térmica y protocolo terminal anti-limbo por merma. & Regla de negocio / SLA interno de la plataforma (\texttt{config.py}). & Sin cota de 20 min, órdenes sin conductor quedarían en un limbo indefinido. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Modelo Conceptual DES (3.6)}
+
+\subsection{Entidades y Recursos}
+\begin{itemize}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Entidad Pedido (\texttt{Order}):} Atributos \texttt{id}, \texttt{rest\_id}, \texttt{coords\_restaurante}, \texttt{coords\_cliente}, \texttt{t\_creacion}, \texttt{t\_inicio\_cocina}, \texttt{t\_cocina\_est}, \texttt{t\_ready\_est}, \texttt{t\_despacho\_prog}, \texttt{t\_listo}, \texttt{t\_arribo\_rep}, \texttt{t\_recogida}, \texttt{t\_entregado}, \texttt{paciencia\_max}, \texttt{courier\_id}, \texttt{es\_urgente}, \texttt{reintentos} y \texttt{estado}.
+    \item \textbf{Entidad/Recurso Repartidor (\texttt{Courier}):} Atributos \texttt{id}, \texttt{coords}, \texttt{bateria}, \texttt{t\_login}, \texttt{max\_shift\_min} (360 min), \texttt{pedido\_actual} y \texttt{estado}.
+    \item \textbf{Recursos Finitos:} (1) Red de 10 cocinas con 47 fogones totales instalados (\texttt{KitchenNetwork}, C6 físico); (2) Pool dinámico de repartidores (\texttt{CourierPool}); (3) Servidor FastAPI y base de datos PostgreSQL 15 con \texttt{QueuePool} de hasta 30 conexiones simultáneas (C6 TI).
+\end{itemize}
+
+\subsection{Variables de Estado del Sistema}
+$N_{\text{ped}}(t)$ (pedidos activos), $Q_{\text{cocina}}(t)$ (pedidos esperando fogón), $B_{\text{fogon}}(t)$ (fogones ocupados, $0 \le B \le 47$), $Q_{\text{asig}}(t)$ (pedidos en cola de asignación de despacho), $Q_{\text{mostrador}}(t)$ (pedidos listos esperando recolección), $c(t)$ (repartidores conectados totales), $R_{\text{disp}}(t)$ (repartidores libres), $R_{\text{ocup}}(t)$ (repartidores en servicio) y $N_{\text{canc}}(t)$ (pedidos cancelados acumulados).
+
+\subsection{Los 14 Eventos Atómicos que Modifican el Estado}
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.15em]
+    \item \texttt{LlegadaPedido}: Cliente emite orden ($N_{\text{ped}} + 1$, $Q_{\text{cocina}} + 1$).
+    \item \texttt{LoginRepartidor}: Courier inicia turno en el pool ($c(t) + 1$, $R_{\text{disp}} + 1$).
+    \item \texttt{InicioCocina}: Comanda pasa a fogón libre ($Q_{\text{cocina}} - 1$, $B_{\text{fogon}} + 1$).
+    \item \texttt{FinCocina}: Cocción termina; comida pasa a mostrador ($B_{\text{fogon}} - 1$, $Q_{\text{mostrador}} + 1$).
+    \item \texttt{DisparoDespacho}: Orden entra a cola de asignación de repartidor ($Q_{\text{asig}} + 1$).
+    \item \texttt{AceptacionRepartidor}: Courier toma la orden ($Q_{\text{asig}} - 1$, $R_{\text{disp}} - 1$, $R_{\text{ocup}} + 1$).
+    \item \texttt{ExpiracionOferta}: Timeout de 45 s sin repartidor; reintento ($Q_{\text{asig}} + 0$, reintentos $+1$).
+    \item \texttt{LlegadaARestaurante}: Courier arriba al local y pasa a mostrador ($R_{\text{ocup}}$ se mantiene).
+    \item \texttt{RecogidaPedido}: Courier retira la bolsa térmica del mostrador ($Q_{\text{mostrador}} - 1$).
+    \item \texttt{EntregaFinal}: Orden entregada ($N_{\text{ped}} - 1$, $R_{\text{ocup}} - 1$). Si turno $< 6\text{ h}$ y batería $\ge 15\%$, $R_{\text{disp}} + 1$; si no, $c(t) - 1$.
+    \item \texttt{CancelacionPorCliente}: Paciencia expira ($N_{\text{ped}} - 1$, $N_{\text{canc}} + 1$; libera etapa en curso).
+    \item \texttt{CancelacionSinRepartidor}: Pedido supera 20 min en mostrador sin conductor ($N_{\text{ped}} - 1$, $Q_{\text{asig}} - 1$, $Q_{\text{mostrador}} - 1$, $N_{\text{canc}} + 1$).
+    \item \texttt{IncidenciaTransito}: Siniestro fortuito en viaje ($N_{\text{ped}} - 1$, $R_{\text{ocup}} - 1$, $c(t) - 1$, $N_{\text{canc}} + 1$).
+    \item \texttt{LogoutRepartidor}: Courier libre cierra sesión por fin de turno o batería ($c(t) - 1$, $R_{\text{disp}} - 1$).
+\end{enumerate}
+
+\subsection{Tabla de los 14 Eventos vs. Variables de Estado}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Matriz de transición de los 14 eventos atómicos sobre las variables de estado del modelo DES.}
+\begin{tabularx}{\textwidth}{c l *{9}{>{\centering\arraybackslash}X}}
+\toprule
+\textbf{\#} & \textbf{Evento Atómico} & $N_{\text{ped}}$ & $Q_{\text{coc}}$ & $B_{\text{fog}}$ & $Q_{\text{asig}}$ & $Q_{\text{mos}}$ & $c(t)$ & $R_{\text{disp}}$ & $R_{\text{ocup}}$ & $N_{\text{canc}}$ \\
+\midrule
+\textbf{1} & \texttt{LlegadaPedido} & $+1$ & $+1$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ \\
+\textbf{2} & \texttt{LoginRepartidor} & $0$ & $0$ & $0$ & $0$ & $0$ & $+1$ & $+1$ & $0$ & $0$ \\
+\textbf{3} & \texttt{InicioCocina} & $0$ & $-1$ & $+1$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ \\
+\textbf{4} & \texttt{FinCocina} & $0$ & $0$ & $-1$ & $0$ & $+1$ & $0$ & $0$ & $0$ & $0$ \\
+\textbf{5} & \texttt{DisparoDespacho} & $0$ & $0$ & $0$ & $+1$ & $0$ & $0$ & $0$ & $0$ & $0$ \\
+\textbf{6} & \texttt{AceptacionRepartidor} & $0$ & $0$ & $0$ & $-1$ & $0$ & $0$ & $-1$ & $+1$ & $0$ \\
+\textbf{7} & \texttt{ExpiracionOferta} & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ \\
+\textbf{8} & \texttt{LlegadaARestaurante} & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ & $0$ \\
+\textbf{9} & \texttt{RecogidaPedido} & $0$ & $0$ & $0$ & $0$ & $-1$ & $0$ & $0$ & $0$ & $0$ \\
+\textbf{10} & \texttt{EntregaFinal} & $-1$ & $0$ & $0$ & $0$ & $0$ & $0/-1^*$ & $+1/0^*$ & $-1$ & $0$ \\
+\textbf{11} & \texttt{CancelacionPorCliente} & $-1$ & $-1/0$ & $-1/0$ & $-1/0$ & $-1/0$ & $0$ & $0/+1$ & $0/-1$ & $+1$ \\
+\textbf{12} & \texttt{CancelacionSinRepartidor} & $-1$ & $0$ & $0$ & $-1$ & $-1$ & $0$ & $0$ & $0$ & $+1$ \\
+\textbf{13} & \texttt{IncidenciaTransito} & $-1$ & $0$ & $0$ & $0$ & $0$ & $-1$ & $0$ & $-1$ & $+1$ \\
+\textbf{14} & \texttt{LogoutRepartidor} & $0$ & $0$ & $0$ & $0$ & $0$ & $-1$ & $-1$ & $0$ & $0$ \\
+\bottomrule
+\end{tabularx}
+\vspace{0.2em}
+\raggedright \footnotesize \textit{*En el evento 10 (\texttt{EntregaFinal}): si el repartidor conserva turno ($<6\text{ h}$) y batería ($\ge 15\%$), retorna a libre ($R_{\text{disp}}+1, c(t)+0$); si alcanzó el límite de turno o batería baja, se desconecta al concluir ($R_{\text{disp}}+0, c(t)-1$).}
+\end{table}
+
+\section{Análisis Analítico con Teoría de Colas y Contraste Estadístico (3.7)}
+
+\subsection{Identificación y Delimitación del Subsistema ($M/M/c$)}
+Se delimita el \textbf{Subsistema de Despacho y Asignación de Repartidores} como un modelo markoviano multicanal $M/M/c$ (Kleinrock, 1975) con llegadas de Poisson a tasa $\lambda$, tiempos de servicio exponenciales independientes con media $1/\mu = 20.0\text{ min}$ ($\mu = 0.05\text{ serv/min}$ por repartidor), flota homogénea $c$ y disciplina FIFO sin abandonos.
+
+\subsection{Deducción Paso a Paso: Pico del Almuerzo (11:30–14:30)}
+Para $\lambda = 2.70\text{ ped/min}$, $\mu = 0.05\text{ serv/min}$ y $c = 70\text{ couriers}$:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Factor de Utilización:} $\rho = \frac{\lambda}{c\mu} = \frac{2.70}{70 \times 0.05} = \frac{2.70}{3.50} \approx \mathbf{0.7714}$ ($77.14\% < 1.0$).
+    \item \textbf{Intensidad de Tráfico:} $a = c\rho = \frac{\lambda}{\mu} = \frac{2.70}{0.05} = 54.0$.
+    \item \textbf{Probabilidad de Vacío ($P_0$):}
+    \begin{equation}
+        P_0 = \left[ \sum_{n=0}^{69} \frac{54.0^n}{n!} + \frac{54.0^{70}}{70!(1-0.7714)} \right]^{-1} \approx \left[ 2.7725 \times 10^{23} + 6.7578 \times 10^{21} \right]^{-1} \approx \mathbf{3.5212 \times 10^{-24}}
+    \end{equation}
+    \item \textbf{Probabilidad de Espera de Erlang-C ($P_w$):}
+    \begin{equation}
+        P_w = \frac{54.0^{70}}{70!(1-0.7714)} P_0 \approx (6.7578 \times 10^{21}) \times (3.5212 \times 10^{-24}) \approx \mathbf{0.0238} \quad (2.38\%)
+    \end{equation}
+    \item \textbf{Número Promedio en Cola ($L_q$):}
+    \begin{equation}
+        L_q = \frac{P_w \cdot \rho}{1 - \rho} = \frac{0.023814 \times 0.771429}{1 - 0.771429} \approx \mathbf{0.0804\text{ pedidos}}
+    \end{equation}
+    \item \textbf{Verificación de la Ley de Little:}
+    \begin{equation}
+        W_q = \frac{L_q}{\lambda} = \frac{0.08037}{2.70} \approx \mathbf{0.0298\text{ min}} \ (1.79\text{ s}), \quad W = W_q + \frac{1}{\mu} = \mathbf{20.0298\text{ min}}, \quad L = \lambda W = \mathbf{54.0804\text{ pedidos}}
+    \end{equation}
+    Identidad de servidores ocupados: $L - L_q = 54.0804 - 0.0804 = 54.0000 = c\rho$ (comprobada exactamente).
+\end{enumerate}
+
+\subsection{Resultados Analíticos (Tabla 5) y Contraste con 30 Réplicas en SimPy (Tabla 6)}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Indicadores analíticos en estado estacionario M/M/c en las 7 franjas de 24 horas.}
+\begin{tabularx}{\textwidth}{l c c c c c c c c c c}
+\toprule
+\textbf{Franja Horaria} & $\lambda$ & $c$ & $1/\mu$ & $\rho$ & $P_0$ & $P_w$ & $L_q$ & $W_q$ & $W$ & $L$ \\
+\midrule
+\textbf{Madrugada (00:00–06:00)} & 0.15 & 6 & 20.0 & 0.5000 & $4.90 \times 10^{-2}$ & 0.0991 & 0.0991 & 0.6610 & 20.6610 & 3.0991 \\
+\textbf{Desayuno (06:00–10:00)} & 1.00 & 25 & 20.0 & 0.8000 & $1.93 \times 10^{-9}$ & 0.2091 & 0.8364 & 0.8364 & 20.8364 & 20.8364 \\
+\textbf{Valle Mañana (10:00–11:30)} & 0.80 & 20 & 20.0 & 0.8000 & $1.03 \times 10^{-7}$ & 0.2561 & 1.0243 & 1.2804 & 21.2804 & 17.0243 \\
+\textbf{Pico Almuerzo (11:30–14:30)} & 2.70 & 70 & 20.0 & 0.7714 & $3.52 \times 10^{-24}$ & 0.0238 & 0.0804 & 0.0298 & 20.0298 & 54.0804 \\
+\textbf{Valle Tarde (14:30–18:30)} & 1.20 & 30 & 20.0 & 0.8000 & $3.60 \times 10^{-11}$ & 0.1729 & 0.6914 & 0.5762 & 20.5762 & 24.6914 \\
+\textbf{Pico Cena (18:30–22:00)} & 3.30 & 85 & 20.0 & 0.7765 & $2.17 \times 10^{-29}$ & 0.0158 & 0.0548 & 0.0166 & 20.0166 & 66.0548 \\
+\textbf{Cierre Nocturno (22:00–24:00)} & 0.50 & 14 & 20.0 & 0.7143 & $4.34 \times 10^{-5}$ & 0.1741 & 0.4353 & 0.8707 & 20.8707 & 10.4353 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent Para validar el motor DES, se ejecutaron \textbf{$N = 30$ réplicas independientes} de la réplica canónica $M/M/c$ (\texttt{run\_markovian\_replica} en \texttt{simulacion/simpy\_engine.py}) para cada una de las siete franjas mediante \texttt{analisis/contrast\_analysis.py} (con calentamiento del 15\% y $\approx 20.000$ arribos por réplica). La \textbf{Tabla 6} reporta el contraste estadístico con intervalos de confianza del 95\% ($t$-Student, $gl=29$, $t_{\text{crit}} = 2.0452$):
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Contraste estadístico de 30 réplicas en SimPy con IC del 95\% frente a la Tabla 5.}
+\begin{tabularx}{\textwidth}{l c c c c c}
+\toprule
+\textbf{Franja Horaria ($c$)} & $\rho$ Teo vs. SimPy ($\pm \text{IC}_{95\%}$) & $W_q$ [min] Teo vs. SimPy & $W$ [min] Teo vs. SimPy & $L$ Teo vs. SimPy & Err $W$ (\%) \\
+\midrule
+\textbf{Madrugada ($c=6$)} & 0.5000 vs. $0.5007 \pm 0.0019$ & 0.6610 vs. $0.6719 \pm 0.0269$ & 20.6610 vs. $20.6679 \pm 0.0720$ & 3.0991 vs. $3.1055 \pm 0.0143$ & 0.03\% \\
+\textbf{Desayuno ($c=25$)} & 0.8000 vs. $0.7984 \pm 0.0030$ & 0.8364 vs. $0.7754 \pm 0.0583$ & 20.8364 vs. $20.7490 \pm 0.0785$ & 20.8364 vs. $20.7349 \pm 0.1154$ & 0.42\% \\
+\textbf{Valle Mañana ($c=20$)} & 0.8000 vs. $0.7992 \pm 0.0031$ & 1.2804 vs. $1.2726 \pm 0.0824$ & 21.2804 vs. $21.2764 \pm 0.1104$ & 17.0243 vs. $17.0022 \pm 0.1176$ & 0.02\% \\
+\textbf{Pico Almuerzo ($c=70$)} & 0.7714 vs. $0.7722 \pm 0.0036$ & 0.0298 vs. $0.0311 \pm 0.0077$ & 20.0298 vs. $20.0248 \pm 0.0675$ & 54.0804 vs. $54.1398 \pm 0.2697$ & 0.02\% \\
+\textbf{Valle Tarde ($c=30$)} & 0.8000 vs. $0.7981 \pm 0.0033$ & 0.5762 vs. $0.5470 \pm 0.0480$ & 20.5762 vs. $20.5468 \pm 0.0856$ & 24.6914 vs. $24.5999 \pm 0.1383$ & 0.14\% \\
+\textbf{Pico Cena ($c=85$)} & 0.7765 vs. $0.7776 \pm 0.0029$ & 0.0166 vs. $0.0163 \pm 0.0045$ & 20.0166 vs. $19.9812 \pm 0.0620$ & 66.0548 vs. $66.1464 \pm 0.2526$ & 0.18\% \\
+\textbf{Cierre Nocturno ($c=14$)} & 0.7143 vs. $0.7147 \pm 0.0022$ & 0.8707 vs. $0.8670 \pm 0.0515$ & 20.8707 vs. $20.8624 \pm 0.0771$ & 10.4353 vs. $10.4394 \pm 0.0495$ & 0.04\% \\
+\bottomrule
+\end{tabularx}
+\vspace{0.2em}
+\raggedright \footnotesize \textit{Resultados reproducibles exportados en \texttt{datos/mmc\_contrast\_results.json}. En todas las franjas, el valor teórico queda contenido en el IC del 95\% y el error en tiempo de permanencia $W$ es inferior al $0.45\%$.}
+\end{table}
+
+\subsection{Identificación del Cuello de Botella: Flota vs. Cocinas}
+Con $K = 47$ fogones fijos y preparación media de $18.5\text{ min}$, la capacidad culinaria máxima sostenible es $\lambda_{\text{cocina\_max}} = 47 / 18.5 \approx 2.5405\text{ ped/min}$. En el pico de almuerzo ($\lambda = 2.70$), $\rho_{\text{cocina}} = 106.3\%$; en el pico de cena ($\lambda = 3.30$), $\rho_{\text{cocina}} = 129.9\%$. Mientras la flota de repartidores dimensionada ($c=70$ y $c=85$) opera con $\rho_{\text{rep}} \approx 77\%$, \textbf{las cocinas se saturan físicamente ($\rho > 1$)}. La asignación voraz inmediata despacha al conductor hacia una cocina sobrecargada, provocando esperas ociosas en mostrador y agotando la disponibilidad del pool de repartidores.
+
+\section{Parámetros, Distribuciones y Plan de Datos (3.8)}
+
+\subsection{Tabla Técnica de Variables Aleatorias y Parámetros}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Variables aleatorias, parámetros estocásticos y fuentes del modelo.}
+\begin{tabularx}{\textwidth}{p{3.5cm} p{3.2cm} p{2.2cm} p{3.5cm} X}
+\toprule
+\textbf{Parámetro} & \textbf{Distribución / Valor} & \textbf{Media / Rango} & \textbf{Origen / Fuente} & \textbf{Justificación Técnica} \\
+\midrule
+Tiempo de Cocción ($T_{\text{coc}}$) & $\text{LogNormal}(2.85, 0.35)$ & $\approx 18.4\text{ min}$ & Forma: Law (2015), Ulmer et al. (2020); valores: hipótesis de escenario. & Modela tiempos de servicio positivos con asimetría derecha. \\
+Capacidad de Fogones ($k_r$) & Entero $k_r \in [3, 6]$ por local & 47 fogones red & Límite físico medible C6 (\texttt{models.py} / \texttt{entities.py}). & Cota física de preparación simultánea ($\lambda_{\max} = 2.54\text{ ped/min}$). \\
+Pool de Conexiones BD & \texttt{QueuePool(size=20, ovf=10)} & Máx. 30 conex. & Límite duro C6 TI (\texttt{database.py}). & Acota conexiones concurrentes de FastAPI a PostgreSQL 15. \\
+Paciencia Cliente ($T_{\text{canc}}$) & $T_{\text{coc}} + \text{Weibull}(2.4, 40\text{ min})$ & $\approx 54\text{ min}$ & Forma: Bai et al. (2019), Law (2015); valores: hipótesis de escenario. & Parámetro $k=2.4>1$ modela riesgo de cancelación creciente con la demora. \\
+Velocidad Courier ($V_{\text{rep}}$) & $\mathcal{N}(18, 3)$ en $[8, 25]\text{ km/h}$ & $18.0\text{ km/h}$ & Hipótesis de escenario urbano (a calibrar con datos externos en E2). & Acota cinemática urbana a valores positivos físicamente factibles. \\
+Sinuosidad Vial ($\tau$) & Constante $\tau = 1.25$ & 1.25 & Ballou et al. (2002); Boeing (2019); Levinson \& El-Geneidy (2009). & Representa el 25\% de sobre-recorrido vial frente a distancia Manhattan. \\
+Demanda Pedidos ($\lambda(t)$) & NHPP en 7 franjas & $0.15 - 3.30$ & Metodología NHPP: Law (2015); tasas: hipótesis de escenario. & Modula variación horaria diurna con dos picos de saturación. \\
+Batería y Drenaje & Drenaje: $0.15\%/\text{min}$ ruta / $0.05\%/\text{min}$ espera & Reserva: $15\%$ & Basado en Carroll y Heiser (2010); tasas lineales como hipótesis. & Modela gasto energético del smartphone con GPS y pantalla activa. \\
+Turno y Oferta & Turno: $360\text{ min}$; ventana: 45 s & Fijos & Políticas operativas de plataforma; incentivos: Cachon et al. (2017). & Reglas de negocio del motor de despacho y renovación de flota. \\
+Umbrales Mostrador & Enfriamiento: 6 min; timeout: 20 min & Fijos & Reglas de negocio / SLA interno de la plataforma (\texttt{config.py}). & Penaliza enfriamiento y evita órdenes indefinidas sin repartidor. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Plan de Recolección de Datos para la Entrega 2}
+Dado que \textbf{Locust es un generador sintético HTTP}, no puede utilizarse para calibrar tiempos físicos de cocina, velocidades ni paciencia. En consecuencia, el plan de datos separa estrictamente dos fuentes:
+\begin{enumerate}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Fuente Interna — Telemetría TI (Locust + \texttt{psutil}):} Medición propia de latencias HTTP ($T_{\text{lat\_api}}$ en ms), throughput (RPS), ocupación del pool de 30 conexiones de PostgreSQL y uso de CPU/RAM bajo pruebas de estrés registradas en \texttt{datos/telemetry\_log.csv}. Se empleará para ajustar el modelo subrogado de infraestructura.
+    \item \textbf{Fuente Externa — Datasets Públicos de Última Milla (Calibración Logística):} Tiempos reales de preparación de pedidos, velocidades efectivas y demoras a partir de registros públicos de plataformas de entrega de comida. Se utilizarán para contrastar las familias Log-Normal y Normal Truncada mediante pruebas Kolmogorov-Smirnov (\texttt{scipy.stats.kstest}) y calibrar las distribuciones a posteriori mediante MCMC en \textbf{PyMC}.
+\end{enumerate}
+
+\section{Métricas de Desempeño (KPIs) (3.9)}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Indicadores Clave de Desempeño (KPIs), expresiones operacionales y umbrales.}
+\begin{tabularx}{\textwidth}{p{2.5cm} p{6.0cm} p{1.8cm} p{2.5cm} X}
+\toprule
+\textbf{KPI} & \textbf{Nombre y Expresión Operacional} & \textbf{Unidad} & \textbf{Umbral} & \textbf{Pregunta} \\
+\midrule
+$W_{\text{total\_p95}}$ & \textbf{Tiempo de Ciclo Total ($p95$):} $\text{Percentil}_{95}(t_{\text{entregado}} - t_{\text{creacion}})$. & Minutos & $\le 40.0\text{ min}$ & Preguntas 1 y 2. \\
+$\bar{T}_{\text{espera\_rest}}$ & \textbf{Espera Ociosa Promedio Courier:} $\frac{1}{N} \sum \max(0, t_{\text{listo}} - t_{\text{arribo\_rep}})$. & Minutos & $\le 3.5\text{ min}$ & Preguntas 1 y 4. \\
+$\rho_{\text{rep}}(t)$ & \textbf{Utilización del Pool de Couriers:} $\frac{R_{\text{ocup}}(t)}{c(t)} \times 100$. & Porcentaje & $75.0\% - 85.0\%$ & Pregunta 2. \\
+$P_{\text{canc}}$ & \textbf{Tasa Global de Cancelación:} $\frac{N_{\text{canc}}}{N_{\text{total}}} \times 100$. & Porcentaje & $< 3.0\%$ & Preguntas 1, 2 y 4. \\
+$T_{\text{mostrador\_p95}}$ & \textbf{Permanencia en Mostrador ($p95$):} $\text{Percentil}_{95}(\max(0, t_{\text{arribo}} - t_{\text{listo}}))$. & Minutos & $\le 6.0\text{ min}$ & Pregunta 4. \\
+$T_{\text{lat\_api\_p99}}$ & \textbf{Latencia HTTP de Rastreo ($p99$):} Percentil 99 en \texttt{GET /tracking}. & Milisegundos & $\le 180.0\text{ ms}$ & Pregunta 3. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Diseño Preliminar de Clases POO (3.10)}
+El simulador implementa el patrón Strategy (\texttt{DispatchPolicy}) conectando \texttt{SimpyEngine} con \texttt{CourierPool}, \texttt{KitchenNetwork} (47 fogones) y \texttt{MetricsCollector}. Al simular 24 horas continuas ($\approx 1.880\text{ pedidos}$, semilla 42):
+\begin{itemize}[leftmargin=1.5em, itemsep=0.2em]
+    \item \textbf{Política Voraz Inmediata (\texttt{GreedyImmediatePolicy}):} El repartidor asignado de inmediato pasa en promedio $\mathbf{\bar{T}_{\text{espera\_rest}} = 10.61\text{ min}}$ esperando en el restaurante ($W_{\text{p95}} = 63.06\text{ min}$, $P_{\text{canc}} = 26.46\%$, 95 pedidos expirados en mostrador por falta de repartidor libre durante picos con $\rho_{\text{cocina}} > 1$).
+    \item \textbf{Política Sincronizada Predictiva (\texttt{PredictiveSynchronizedPolicy}, $\Delta t = 2.5\text{ min}$):} Al diferir el despacho y sincronizar con $\text{ETA}_{\text{listo}}$, la espera ociosa del repartidor se reduce un \textbf{95.7\%} a $\mathbf{\bar{T}_{\text{espera\_rest}} = 0.46\text{ min}}$ ($\le 3.5\text{ min}$ meta), reduciendo órdenes expiradas en mostrador a 17, bajando $W_{\text{p95}}$ a $57.62\text{ min}$ y reduciendo cancelaciones a $19.51\%$ (+109 pedidos entregados adicionales con la misma flota).
+\end{itemize}
+
+\section{Hoja de Ruta de Integración y Matriz de Riesgos (3.11)}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Matriz de riesgos técnicos y estrategias de mitigación.}
+\begin{tabularx}{\textwidth}{c p{4.2cm} c c X}
+\toprule
+\textbf{\#} & \textbf{Riesgo Técnico / Operacional} & \textbf{Prob.} & \textbf{Imp.} & \textbf{Estrategia de Mitigación y Contingencia} \\
+\midrule
+\textbf{R-01} & Agotamiento del pool de 30 conexiones de BD en Locust. & Media & Alto & Calibrar \texttt{pool\_size=20, max\_overflow=10} y liberar sesiones de inmediato tras cada request (\texttt{get\_db}). \\
+\textbf{R-02} & Sesgo en el contraste analítico $M/M/c$ vs. SimPy. & Baja & Alto & Ejecutar 30 réplicas con descarte de calentamiento (15\%) y verificar cobertura con IC 95\% ($t$-Student). \\
+\textbf{R-03} & Acumulación de órdenes en mostrador en picos ($\rho > 1$). & Media & Alto & Prioridad con bono +20\% a pedidos en mostrador y cancelación por merma a los 20 min (\texttt{CANCELADO\_SIN\_REPARTIDOR}). \\
+\textbf{R-04} & Desajuste entre supuestos iniciales y datos empíricos en E2. & Media & Medio & Emplear datasets públicos reales y aplicar pruebas Kolmogorov-Smirnov e inferencia bayesiana con PyMC. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Referencias Bibliográficas y Declaración de IA (3.12)}
+
+\subsection{Referencias Bibliográficas (APA 7.ª Edición)}
+\noindent Bai, J., So, K. C., Tang, C. S., Chen, X., \& Wang, H. (2019). Coordinating supply and demand on an on-demand service platform with impatient customers. \textit{Manufacturing \& Service Operations Management}, \textit{21}(3), 556–570. \url{https://doi.org/10.1287/msom.2018.0707}
+
+\vspace{0.3em}
+\noindent Ballou, R. H., Rahardja, H., \& Sakai, N. (2002). Selected properties of Manhattan and Euclidean distances as approximations for network distances. \textit{Computers \& Operations Research}, \textit{29}(8), 983–1001. \url{https://doi.org/10.1016/S0305-0548(00)00101-9}
+
+\vspace{0.3em}
+\noindent Boeing, G. (2019). Urban spatial order: Street network orientation, configuration, and entropy. \textit{Applied Network Science}, \textit{4}(1), 67. \url{https://doi.org/10.1007/s41109-019-0189-1}
+
+\vspace{0.3em}
+\noindent Cachon, G. P., Daniels, K. M., \& Lobel, R. (2017). The role of surge pricing on a service platform with customer and provider self-scheduling. \textit{Management Science}, \textit{63}(11), 3684–3699. \url{https://doi.org/10.1287/mnsc.2017.2788}
+
+\vspace{0.3em}
+\noindent Carroll, A., \& Heiser, G. (2010). An analysis of power consumption in a smartphone. En \textit{Proceedings of the 2010 USENIX Annual Technical Conference (USENIX ATC '10)} (pp. 21–34). USENIX Association.
+
+\vspace{0.3em}
+\noindent Kleinrock, L. (1975). \textit{Queueing systems, Volume 1: Theory}. John Wiley \& Sons.
+
+\vspace{0.3em}
+\noindent Law, A. M. (2015). \textit{Simulation modeling and analysis} (5.ª ed.). McGraw-Hill Education.
+
+\vspace{0.3em}
+\noindent Levinson, D., \& El-Geneidy, A. (2009). The circuity of urban travel. \textit{Transportation Research Part A: Policy and Practice}, \textit{43}(8), 701–713. \url{https://doi.org/10.1016/j.tra.2009.07.001}
+
+\vspace{0.3em}
+\noindent Ulmer, M. W., Goodson, J. C., Mattfeld, D. C., \& Hennig, M. (2020). Offline–online approximate dynamic programming for dynamic delivery problems. \textit{European Journal of Operational Research}, \textit{284}(2), 577–595. \url{https://doi.org/10.1016/j.ejor.2019.12.039}
+
+\subsection{Anexo: Declaración de Uso de Inteligencia Artificial (Tabla por Uso)}
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Declaración detallada de uso de herramientas de Inteligencia Artificial por caso de uso.}
+\begin{tabularx}{\textwidth}{c p{2.2cm} p{3.2cm} p{3.8cm} X}
+\toprule
+\textbf{\#} & \textbf{Herramienta} & \textbf{Sección / Código} & \textbf{Instrucción (Prompt)} & \textbf{Verificación y Modificación por el Equipo} \\
+\midrule
+\textbf{1} & Claude / Gemini & Secciones 3.2 y 3.6 & Generar diagramas Mermaid para arquitectura y flujo de eventos. & El equipo verificó los 14 eventos con \texttt{main.py} y la coherencia 1 a 1 con la Tabla 4 de estados. \\
+\addlinespace
+\textbf{2} & Gemini / Claude & Sección 3.7 y \texttt{queueing\_theory.py} & Estructurar clase Python para Erlang-C en 7 franjas horarias. & Verificados manualmente cálculos de almuerzo ($c=70$), condición $\rho < 1$ y Ley de Little ($L = \lambda W$). \\
+\addlinespace
+\textbf{3} & Gemini & Sección 3.7.4, \texttt{simpy\_engine.py} y \texttt{contrast\_analysis.py} & Implementar réplica M/M/c y 30 réplicas con IC 95\% frente a Tabla 5. & Ejecutadas 30 réplicas por franja, verificando cobertura del IC 95\% y error relativo $< 0.45\%$ en $W$ y $L$. \\
+\addlinespace
+\textbf{4} & Gemini & Sección 3.10, \texttt{entities.py}, \texttt{policies.py} y \texttt{simpy\_engine.py} & Conectar políticas Voraz y Sincronizada con \texttt{CourierPool} en SimPy. & Validada lógica de espera en mostrador, filtro de batería ($\ge 15\%$) y KPIs exportados en \texttt{simulation\_results.json}. \\
+\addlinespace
+\textbf{5} & Claude / Gemini & \texttt{sistema\_real/} y \texttt{tests/} & Generar modelos SQLAlchemy, endpoints FastAPI y tests unitarios. & Se configuró \texttt{QueuePool} (máx. 30), bloqueos atómicos \texttt{with\_for\_update()} y suite de 34 tests al 100\%. \\
+\addlinespace
+\textbf{6} & Gemini & Secciones 3.1–3.12 (\texttt{.tex} y \texttt{Fuentes.md}) & Depurar redacción a tono técnico neutro, formato APA 7 y retirar fuentes no sostenidas. & Verificadas las 9 referencias académicas con DOIs e ISBNs, retiradas citas dudosas y declaradas hipótesis de escenario. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\end{document}
