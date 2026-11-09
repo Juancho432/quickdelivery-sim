@@ -18,8 +18,8 @@
 
 El sistema aborda el problema de la **desincronización entre la preparación en cocina y el arribo del repartidor**:
 
-* **Política Actual (Línea Base):** Asignación Voraz Inmediata, donde el repartidor pasa un promedio de $16.2\text{ minutos}$ inactivo en el restaurante esperando la comida, desperdiciando su cota física de 6 horas y drenando su batería móvil.
-* **Política Propuesta (Alternativa):** Despacho Sincronizado Predictivo ($t_{\text{despacho}} = \text{ETA}_{\text{listo}} - t_{\text{viaje}} + \Delta t_{\text{buffer}}$) con cinemática vial corregida por sinuosidad ($\tau = 1.25$), filtro preventivo de batería ($\ge 15\%$) y límite de fatiga de 6 horas (OIT/ILO, 2021).
+* **Política Actual (Línea Base):** Asignación Voraz Inmediata, modelada bajo la hipótesis de escenario operativo donde el repartidor arriba de forma prematura y espera inactivo en el restaurante hasta la salida del pedido de cocina (~10.6 min en SimPy), consumiendo tiempo de turno y drenando su batería.
+* **Política Propuesta (Alternativa):** Despacho Sincronizado Predictivo ($t_{\text{despacho}} = \text{ETA}_{\text{listo}} - t_{\text{viaje}} + \Delta t_{\text{buffer}}$) con cinemática vial corregida por sinuosidad urbana ($\tau = 1.25$), filtro preventivo de reserva de batería ($\ge 15\%$), límite de turno por política operacional (6 horas) y respeto a la capacidad física instalada de 47 fogones totales en la red.
 
 ---
 
@@ -254,13 +254,15 @@ Modelos - PA/
 ├── simulacion/                    # Motor de Simulación DES (SimPy v0 24h)
 ├── analisis/                      # Contrastes analíticos M/M/c y Ley de Little
 ├── datos/                         # Persistencia de telemetría y resultados de simulación
-│   ├── telemetry_log.csv          # Registro en vivo de peticiones HTTP, CPU y RAM
-│   └── simulation_results.json    # Resultados de corridas SimPy
+│   ├── simulation_results.json    # Métricas y KPIs de la simulación SimPy 24h
+│   └── mmc_contrast_results.json  # Resultados de 30 réplicas SimPy vs M/M/c analítico (Tabla 5)
 └── docs/                          # Documentación del proyecto de aula
+    ├── Planteamiento_Proyecto.md  # Documento maestro consolidado de Entrega 1 (Markdown)
+    ├── PA_E1_Planteamiento_QuickDeliverySim.tex # Documento maestro en LaTeX
+    ├── Subsanacion_Retroalimentacion_E1.tex     # Memorando formal de subsanación de retroalimentación
+    ├── Fuentes.md                 # Compendio de 9 fuentes bibliográficas verificadas (APA 7.ª ed.)
+    ├── Auditoria.md               # Bitácora técnica, criterios C1-C7 y resoluciones D-01 a D-11
     ├── Dashboard_Centro_Operaciones.md # Especificación del dashboard interactivo y gemelo digital
-    ├── Documentacion_Pruebas_Unitarias_y_API.md # Matriz y catálogo de pruebas
-    ├── Asignaciones_Equipo_E1.md  # Matriz de roles y responsabilidades de 3 personas
-    ├── Auditoria.md               # Bitácora central, criterios C1-C7 y decisiones D-01 a D-11
-    ├── Flujo_Completo_y_Dinamica_24h.md # Especificación del gemelo digital de 24 horas
-    └── Planes de Accion/          # Planes modulares 00 al 06
+    ├── Documentacion_Pruebas_Unitarias_y_API.md # Matriz y catálogo de pruebas unitarias y API
+    └── Proyecto de Aula - Entrega Parcial 1 Planteamiento del Proyecto.pdf # Guía oficial docente
 ```
