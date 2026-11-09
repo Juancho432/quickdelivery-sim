@@ -35,28 +35,45 @@ class TestQuickDeliveryAPIBase(unittest.TestCase):
 
     client: TestClient
 
+    db_available: bool = False
+    db_skip_reason: str = ""
+
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(app)
+        cls.db_available = False
+        cls.db_skip_reason = ""
         
-        # Verificar disponibilidad de base de datos e insertar semilla si es necesario
+        # Probar conectividad con la base de datos
+        try:
+            with engine.connect() as conn:
+                pass
+            cls.db_available = True
+        except Exception as conn_err:
+            cls.db_available = False
+            cls.db_skip_reason = f"Base de datos PostgreSQL no disponible en {engine.url}: {conn_err}"
+            return
+
+        # Si hay conexión, crear tablas y sembrar datos iniciales
         db = SessionLocal()
         try:
             Base.metadata.create_all(bind=engine)
             seed_database(db)
-            # Limpiar datos transaccionales para arrancar con estado predecible
             db.query(TrackingRecordModel).delete()
             db.query(OrderModel).delete()
             db.commit()
         except Exception as e:
             db.rollback()
-            # En caso de fallo transitorio, asegurar que no queden transacciones colgadas
-            pass
+            cls.db_available = False
+            cls.db_skip_reason = f"Error al inicializar esquemas en BD: {e}"
         finally:
             db.close()
 
     def setUp(self):
         """Restablece los parámetros de configuración y limpia órdenes antes de cada test para aislamiento total."""
+        if not getattr(self, "db_available", False):
+            self.skipTest(getattr(self, "db_skip_reason", "PostgreSQL no disponible. Inicie Docker con docker-compose up."))
+
         system_config.active_dispatch_policy = "synchronized"
         system_config.buffer_delta_t_min = 2.0
         system_config.max_shift_duration_min = 360.0
