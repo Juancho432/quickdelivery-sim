@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from sistema_real.app.database import engine, Base, get_db
-from sistema_real.app.models import OrderModel, CourierModel, RestaurantModel, TrackingRecordModel, seed_database, utcnow
+from sistema_real.app.models import OrderModel, CourierModel, RestaurantModel, TrackingRecordModel, seed_database, utcnow, ensure_utc
 from sistema_real.app.schemas import (
     OrderCreateSchema, OrderResponseSchema, OrderCancelSchema,
     KDSOrderResponseSchema, OrderReadyResponseSchema,
@@ -190,7 +190,7 @@ def get_restaurant_orders(
 
     for o in orders:
         check_anti_limbo_timeout(o, db)
-        tiempo_espera = (now - o.t_creado).total_seconds() / 60.0
+        tiempo_espera = (now - ensure_utc(o.t_creado)).total_seconds() / 60.0
         results.append(KDSOrderResponseSchema(
             order_id=o.id,
             restaurant_id=o.restaurant_id,

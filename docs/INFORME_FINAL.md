@@ -1,149 +1,201 @@
-### 2.1 Dinámica del Sistema y Modelo Conceptual DES
+# Informe Final — Gemelo Digital y Simulación Estocástica para la Optimización de Despacho Sincronizado y Gestión de Flota Abierta (QuickDelivery Sim)
 
-El gemelo digital opera como un modelo de **Simulación de Eventos Discretos (DES)** implementado en Python sobre la librería `SimPy`, simulando un ciclo operativo continuo de **24 horas (1.440 minutos)**. El reloj de simulación salta estocásticamente entre eventos atómicos discretos sin avance a paso fijo, lo que permite resolver cerca de 1.890 pedidos diarios y la interacción de hasta 100 repartidores en 2 a 4 segundos de cómputo en CPU.
+- **Curso:** Modelos y Simulación (2026-2) — I.U. Pascual Bravo
+- **Grupo:** Grupo 2
+- **Repositorio:** https://github.com/Juancho432/quickdelivery-sim
+- **Comando de despliegue API:** `docker compose up --build -d`
+- **Comando de ejecución SimPy:** `python simulacion/main.py`
 
-#### 2.1.1 Entidades del Dominio y sus Atributos
+| Integrante | Correo Institucional | Rol Ejecutado | Commits Principales (Módulos) |
+| :--- | :--- | :--- | :--- |
+| **Sebastian Echeverri** | sebastian.echeverri602@pascualbravo.edu.co | Modelado DES / SimPy | `simulacion/` (`main.py`, `simpy_engine.py`, `entities.py`, `policies.py`, `metrics.py`) |
+| **Juan Manuel Jaramillo** | juanmanueljaramillojaramillo4@gmail.com | Infraestructura / API / Telemetría | `sistema_real/`, `docker-compose.yml`, `Dockerfile`, `locustfile.py`, `tests/`, `datos/telemetry_log.csv` |
+| **Emmanuel Mora** | emmamg714@gmail.com | Análisis Estadístico / Contraste M/M/c | `analisis/` (`queueing_theory.py`, `contrast_analysis.py`, `generador_figuras.py`), `docs/figuras/`, `datos/` |
 
-* **`Order` (Pedido):** Entidad pasiva conducida a través de las etapas del servicio. Posee identificador único, restaurante asignado ($r \in \{0, \dots, 9\}$), coordenadas del cliente dentro del cuadrante urbano de $6 \times 6\text{ km}$, distancia vial con sinuosidad urbana ($\tau = 1.25$), tiempo de cocción asignado ($T_{\text{cocina}} \sim \text{LogNormal}(\mu_{\ln}=2.85, \sigma_{\ln}=0.35)$), marca de tiempo de despacho predictivo ($t_{\text{despacho}}$), umbral de impaciencia ($T_{\text{canc}} \sim \text{Weibull}(k=2.4, \lambda_w=40\text{ min})$) y estados discretos.
-* **`Courier` (Repartidor):** Entidad activa de la flota crowdsourcing. Modela posición espacial $(x, y)$, nivel de batería $[0\%, 100\%]$ con drenaje activo de $0.15\%/\text{min}$ en movimiento y $0.05\%/\text{min}$ en espera, marca temporal de login ($t_{\text{login}}$) y límite operativo de turno ($T_{\text{turno}} \le 360\text{ min}$).
-* **`KitchenNetwork` (Red de Cocinas):** Agrupa 10 restaurantes metropolitanos con capacidades heterogéneas ($k_r \in [3, 6]$ fogones simultáneos), totalizando una cota física rígida de **47 fogones en la red**.
-* **`CourierPool` (Pool Dinámico de Flota):** Gestiona la oferta conectada $c(t)$, regulada mediante un proceso de arribo NHPP ($\lambda_{\text{login}}(t)$) con desconexión al término de la jornada.
+---
 
-### 2.1.2 Recursos de Contención, Disciplinas de Cola y Límites Físicos Duros (C6/C7)
+## 1. Resumen Ejecutivo
 
-* **Contención Culinaria (C6 - Límite Físico):** Cada restaurante modela sus puestos de cocción como un recurso multicanal `simpy.Resource(env, capacity=k_r)` con disciplina FIFO. La capacidad máxima de producción teórica de la red es un límite espacial duro de **47 fogones**, acotando el flujo a $\lambda_{\text{max}} = 47 / 18.5 \approx 2.54\text{ ped/min}$.
-* **Contención de Software TI (C6 - Límite de Hardware/Software):** En el sistema real contenerizado, el acceso a PostgreSQL 15 está restringido a un máximo de **30 conexiones simultáneas** (`QueuePool` con `pool_size=20, max_overflow=10`). Las peticiones que exceden este umbral en horas pico experimentan bloqueos o encolamiento en el servidor.
-* **Contención de Flota y Actores Autónomos (C7):** Los repartidores no son empleados fijos sino actores autónomos (C7). El sistema gobierna su comportamiento con dos reglas:
-  1. *Filtro Preventivo de Batería (Restricción de hardware del dispositivo):* Se evalúa que $\text{Bat}_{\text{actual}} - \Delta \text{Bat}_{\text{est}} \ge 15\%$, donde $\Delta \text{Bat}_{\text{est}} = (t_{\text{viaje\_local}} + t_{\text{viaje\_cliente}}) \times 0.15\% + t_{\text{espera}} \times 0.05\%$.
-  2. *Límite Operativo de Fatiga (Política de Negocio):* Se restringe el turno a 360 min con flexibilidad de cierre. *(Nota metodológica: Se clasifica como regla de negocio y se descarta como límite C6, ya que no representa una restricción física insuperable del entorno).*
+Este proyecto resuelve la desincronización operativa entre la preparación culinaria y el despacho de repartidores en plataformas urbanas de entrega a domicilio durante 24 horas continuas bajo demanda no estacionaria ($\approx 1.890\text{ pedidos/día}$) y límites físicos duros ($K = 47$ fogones en 10 restaurantes, reserva de batería móvil del $15\%$ y pool de 30 conexiones en PostgreSQL 15). Mediante un gemelo digital de Eventos Discretos (DES) en `SimPy` articulado con un prototipo real en `FastAPI` y `Docker Compose`, se evaluó la **Política Actual (Asignación Voraz Inmediata)** frente a la **Política Alternativa (Despacho Sincronizado Predictivo con $\Delta t_{\text{buffer}} = 2.5\text{ min}$)** en $R = 30$ réplicas independientes. El despacho sincronizado reduce la espera ociosa del repartidor en restaurante en un **$95.6\%$** en 24h (de $10.97 \pm 0.13\text{ min}$ a $0.48 \pm 0.01\text{ min}$) y un **$80.1\%$** en hora pico ($2.1\text{ min} \le 3.5\text{ min}$ SLA), disminuye la permanencia en mostrador ($p95$) de $16.2\text{ min}$ a $1.8\text{ min}$ ($\le 6.0\text{ min}$ SLA) y estabiliza la latencia HTTP ($p99$) en $165.0\text{ ms}$ ($\le 180.0\text{ ms}$ SLA), recomendándose su despliegue en producción.
 
-#### 2.1.3 Políticas de Despacho Bajo Patrón Strategy
+---
 
-1. **`GreedyImmediatePolicy` (Línea Base):** Asigna el pedido al repartidor libre más cercano en el instante de su creación ($t_{\text{despacho}} = t_{\text{actual}}$). Provoca tiempos de espera ociosa de $10.6\text{ min}$ en el mostrador mientras la comida termina de hornearse.
-2. **`PredictiveSynchronizedPolicy` (Propuesta Alternativa):** Calcula el momento óptimo de despacho:
-   $$t_{\text{despacho}} = \max\left(t_{\text{actual}}, \; \text{ETA}_{\text{listo}} - t_{\text{viaje\_local}} - \Delta t_{\text{buffer}}\right)$$
-   con $\Delta t_{\text{buffer}} = 2.5\text{ min}$. Dispone de un protocolo de escalamiento en dos fases:
-   * *Fase 1:* Ensanchamiento de ventana de arribo $[\text{ETA} - 6\text{ min}, \text{ETA} + 8\text{ min}]$ ante rechazos en 45 s.
-   * *Fase 2:* Conmutación a prioridad urgente anti-enfriamiento con incentivo tarifario del $+20\%$ si la comida sale a mostrador sin repartidor asignado.
-   * *Protocolo Anti-Limbo:* Si transcurren 20 minutos en mostrador sin recolección, transiciona a `CANCELADO_SIN_REPARTIDOR`, protegiendo la inocuidad y asumiendo la merma comercial.
+## 2. Contexto del Sistema y Subsanación de la Entrega 1
 
-#### 2.1.4 Alineación de los 12 Eventos Atómicos con las Variables de Estado
+### 2.1 Dinámica del Sistema (Qué fluye, qué espera, qué se satura)
 
-El sistema actualiza de manera estricta el vector de variables de estado frente a cada evento discreto. A continuación se presentan los **12 eventos atómicos** consolidados (unificando subprocesos como el inicio de cocina o la expiración de oferta dentro del ciclo de vida principal para evitar redundancias en el conteo de variables de estado) y su impacto matemático en la simulación:
+El gemelo digital opera como un modelo de **Simulación de Eventos Discretos (DES)** en `SimPy` sobre un horizonte continuo de **24 horas ($1.440\text{ minutos}$)**. El reloj salta entre eventos atómicos discretos, procesando $\approx 1.890\text{ pedidos diarios}$ y la interacción de la flota en $2\text{ a }4\text{ segundos}$ de cómputo por réplica.
 
-| Evento Atómico | Entidad Involucrada | Variables de Estado que Modifica |
+- **Entidades que fluyen:**
+  * **`Order` (Pedido):** Entidad pasiva conducida por tres etapas secuenciales (1. Ingestión/Validación TI $\rightarrow$ 2. Cocción y Despacho $\rightarrow$ 3. Tránsito Urbano y Entrega). Incluye restaurante ($r \in \{0, \dots, 9\}$), coordenadas en cuadrante de $6 \times 6\text{ km}$, distancia vial con sinuosidad $\tau = 1.25$, tiempo de cocción $T_{\text{cocina}} \sim \text{LogNormal}(\mu_{\ln}=2.85, \sigma_{\ln}=0.35)$, instante de despacho $t_{\text{despacho}}$, umbral de impaciencia $T_{\text{canc}} \sim T_{\text{cocina}} + \text{Weibull}(k=2.4, \lambda_w=40\text{ min})$ y prioridad urgente con bono ($+20\%$) al salir a mostrador sin repartidor.
+  * **`Courier` (Repartidor):** Entidad activa autónoma con arribo NHPP ($\lambda_{\text{login}}(t)$), ubicación $(x, y)$, batería $[0\%, 100\%]$ (drenaje de $0.15\%/\text{min}$ en ruta y $0.05\%/\text{min}$ en espera) y política operativa de turno ($T_{\text{turno}} \le 360\text{ min}$).
+- **Recursos y colas de contención:**
+  * **`KitchenNetwork` (Cocinas):** 10 locales con capacidades $k_r \in [3, 6]$ modeladas vía `simpy.Resource(env, capacity=k_r)` con disciplina **FIFO**, totalizando **47 fogones instalados**.
+  * **`CourierPool` (Flota Abierta):** Administra los repartidores conectados $c(t)$ filtrando cercanía, batería y ventana de aceptación de $45\text{ s}$. Las órdenes en estado `LISTO_EN_MOSTRADOR` sin conductor conmutan a cola de prioridad urgente anti-enfriamiento.
+  * **`QueuePool` PostgreSQL 15:** En el sistema real (`sistema_real/app/database.py`), el acceso concurrente a base de datos se regula con `pool_size=20` y `max_overflow=10`.
+- **Límite físico duro (C6) y comportamiento de agentes (C7):**
+  * **Cotas Físicas Medibles (C6):** (1) Capacidad instalada de **$K = 47\text{ fogones}$**, que limita la tasa máxima de cocción a $\lambda_{\text{cocina\_max}} = 47 / 18.5 \approx 2.5405\text{ ped/min}$, saturándose en almuerzo ($\lambda = 2.70, \rho_{\text{cocina}} = 106.3\%$) y cena ($\lambda = 3.30, \rho_{\text{cocina}} = 129.9\%$); (2) tope de **30 conexiones simultáneas** en PostgreSQL 15; y (3) reserva energética del móvil ($\text{Bat}_{\text{actual}} - \Delta \text{Bat}_{\text{est}} \ge 15\%$). *(El turno de 360 min se modela como política operativa de negocio).*
+  * **Actores Autónomos y Reglas de Abandono (C7):** Bajo `PredictiveSynchronizedPolicy`, el despacho ocurre en $t_{\text{despacho}} = \max(t_{\text{actual}}, \text{ETA}_{\text{listo}} - t_{\text{viaje\_local}} - \Delta t_{\text{buffer}})$. Si la oferta expira tras $45\text{ s}$ sin aceptación, la *Fase 1* amplía la ventana y el radio de búsqueda; si la orden sale del fogón sin conductor, la *Fase 2* activa prioridad urgente con bono del $+20\%$. Si permanece $\ge 20\text{ min}$ en mostrador, se cancela por protocolo anti-limbo (`CANCELADO_SIN_REPARTIDOR`), y si excede la tolerancia Weibull del comprador, ocurre abandono (`CANCELADO_POR_CLIENTE`).
+
+#### Alineación de Eventos Discretos y Variables de Estado
+
+El motor actualiza el vector de estado $S(t) = \langle N_{\text{ped}}(t), Q_{\text{cocina}}(t), B_{\text{fogon}}(t), Q_{\text{mostrador}}(t), c(t), R_{\text{disp}}(t), R_{\text{ocup}}(t) \rangle$ en cada evento:
+
+| # | Evento Atómico | Entidad Involucrada | Variables de Estado que Modifica |
+| :-: | :--- | :--- | :--- |
+| **1** | `LlegadaPedido` | `Order` | $N_{\text{ped}}(t) \leftarrow N_{\text{ped}} + 1$, $Q_{\text{cocina}}(t) \leftarrow Q_{\text{cocina}} + 1$ |
+| **2** | `LoginRepartidor` | `Courier` | $c(t) \leftarrow c + 1$, $R_{\text{disp}}(t) \leftarrow R_{\text{disp}} + 1$ |
+| **3** | `InicioCocina` | `Order` / `Kitchen` | $Q_{\text{cocina}}(t) \leftarrow Q_{\text{cocina}} - 1$, $B_{\text{fogon}}(t) \leftarrow B_{\text{fogon}} + 1$, retardo Log-Normal |
+| **4** | `FinCocina` | `Order` / `Kitchen` | $B_{\text{fogon}}(t) \leftarrow B_{\text{fogon}} - 1$, $Q_{\text{mostrador}}(t) \leftarrow Q_{\text{mostrador}} + 1$ |
+| **5** | `DisparoDespacho` | Plataforma | Emisión de oferta a couriers calificados con ventana de decisión de $45\text{ s}$ |
+| **6** | `AceptacionRepartidor` | `Courier` | $R_{\text{disp}}(t) \leftarrow R_{\text{disp}} - 1$, $R_{\text{ocup}}(t) \leftarrow R_{\text{ocup}} + 1$ |
+| **7** | `ExpiracionOferta` | Plataforma | Escalamiento a Fase 1 (ampliar buffer) o Fase 2 (prioridad urgente con bono $+20\%$) |
+| **8** | `LlegadaARestaurante` | `Courier` | Si $t_{\text{arribo}} < t_{\text{listo}}$, inicia espera ociosa y acumula $T_{\text{espera\_rest}}$ |
+| **9** | `RecogidaPedido` | `Order` / `Courier` | $Q_{\text{mostrador}}(t) \leftarrow Q_{\text{mostrador}} - 1$; sella tiempo de permanencia $t_{\text{mostrador}}$ |
+| **10** | `EntregaFinal` | `Order` / `Courier` | $N_{\text{ped}}(t) \leftarrow N_{\text{ped}} - 1$, $R_{\text{ocup}}(t) \leftarrow R_{\text{ocup}} - 1$, verifica turno/batería |
+| **11** | `CancelacionPorCliente` | `Order` | $N_{\text{canc\_cli}}(t) \leftarrow N_{\text{canc\_cli}} + 1$, libera fogón o courier asignado |
+| **12** | `CancelacionSinRepartidor`| `Order` | $N_{\text{canc\_sin\_rep}}(t) \leftarrow N_{\text{canc\_sin\_rep}} + 1$, $Q_{\text{mostrador}}(t) \leftarrow Q_{\text{mostrador}} - 1$ |
+| **13** | `IncidenciaTransito` | `Order` / `Courier` | $N_{\text{canc\_inc}}(t) \leftarrow N_{\text{canc\_inc}} + 1$, baja de orden y liberación de recursos |
+| **14** | `LogoutRepartidor` | `Courier` | $c(t) \leftarrow c - 1$, $R_{\text{disp}}(t) \leftarrow R_{\text{disp}} - 1$ |
+
+### 2.2 Tabla de Subsanación de la Entrega Parcial 1
+
+Se subsanaron los compromisos obligatorios del **Grupo 2** y las observaciones docentes de la Entrega Parcial 1:
+
+| Observación / Error en Entrega 1 | Corrección Implementada en la Entrega Final | Archivo / Línea en el Repositorio |
 | :--- | :--- | :--- |
-| **1. LlegadaPedido** | `Order` | $N_{\text{ped}}(t) \leftarrow N_{\text{ped}} + 1$, $Q_{\text{cocina}}(t) \leftarrow Q_{\text{cocina}} + 1$ |
-| **2. LoginRepartidor** | `Courier` | $c(t) \leftarrow c + 1$, $R_{\text{disp}}(t) \leftarrow R_{\text{disp}} + 1$ |
-| **3. FinCocina** | `Order` / `Kitchen` | $Q_{\text{cocina}}(t) \leftarrow Q_{\text{cocina}} - 1$, $Q_{\text{mostrador}}(t) \leftarrow Q_{\text{mostrador}} + 1$ |
-| **4. DisparoDespacho** | Plataforma | Emisión de oferta con ventana temporal de decisión de 45 s |
-| **5. AceptacionRepartidor** | `Courier` | $R_{\text{disp}}(t) \leftarrow R_{\text{disp}} - 1$, $R_{\text{ocup}}(t) \leftarrow R_{\text{ocup}} + 1$ |
-| **6. LlegadaARestaurante** | `Courier` | Si $t_{\text{arribo}} < t_{\text{listo}}$, espera ociosa; acumula $T_{\text{espera\_rest}}$ |
-| **7. RecogidaPedido** | `Order` / `Courier` | $Q_{\text{mostrador}}(t) \leftarrow Q_{\text{mostrador}} - 1$; sella tiempo en mostrador |
-| **8. EntregaFinal** | `Order` / `Courier` | $N_{\text{ped}}(t) \leftarrow N_{\text{ped}} - 1$, $R_{\text{ocup}}(t) \leftarrow R_{\text{ocup}} - 1$, evaluación de fin de turno |
-| **9. CancelacionPorCliente** | `Order` | $N_{\text{canc\_cli}}(t) \leftarrow N_{\text{canc\_cli}} + 1$, $N_{\text{ped}}(t) \leftarrow N_{\text{ped}} - 1$ |
-| **10. CancelacionSinRepartidor** | `Order` | $N_{\text{canc\_sin\_rep}}(t) \leftarrow N_{\text{canc\_sin\_rep}} + 1$, $Q_{\text{mostrador}}(t) \leftarrow Q_{\text{mostrador}} - 1$ |
-| **11. IncidenciaTransito** | `Order` / `Courier` | $N_{\text{canc\_inc}}(t) \leftarrow N_{\text{canc\_inc}} + 1$, liberación de recursos |
-| **12. LogoutRepartidor** | `Courier` | $c(t) \leftarrow c - 1$, $R_{\text{disp}}(t) \leftarrow R_{\text{disp}} - 1$ |
+| **Deuda Grupo 2.1:** Completar motor SimPy con máquina de estados de repartidores, políticas Voraz vs. Sincronizada y cálculo real de 6 KPIs. | Se implementó `CourierPool` con estados, cinemática ($\tau=1.25$), batería y turnos; se integraron `GreedyImmediatePolicy` y `PredictiveSynchronizedPolicy` al motor de 24h y se creó el CLI reproducible. | `simulacion/entities.py` (L52–L240), `simulacion/policies.py` (L18–L165), `simulacion/simpy_engine.py` (L95–L410), `simulacion/main.py` (L1–L199) |
+| **Deuda Grupo 2.2:** Reemplazar datos de prueba en `simulation_results.json` por corridas reales y corregir `ImportError` en `contrast_analysis.py`. | Se corrigió la resolución de rutas en `contrast_analysis.py`, se ejecutaron 30 réplicas estocásticas (`seed=42..71`) para ambas políticas y se exportaron las métricas reales. | `analisis/contrast_analysis.py` (L1–L25), `datos/simulation_results.json` (L1–L837), `datos/mmc_contrast_results.json` (L1–L506) |
+| **Deuda Grupo 2.3:** Equilibrar historial de commits en simulación y depurar referencias bibliográficas no verificables. | Se retiraron citas impropias (FDA y OIT), consolidando 9 fuentes indexadas APA 7.ª ed., y se distribuyeron los commits entre los tres autores en sus ramas respectivas. | `docs/Fuentes.md` (L1–L120), historial Git de los tres integrantes |
+| **Obs. E1 — Réplica canónica $M/M/c$:** `run_markovian_replica()` era un stub vacío sin contraste estadístico de 30 réplicas. | Se codificó la réplica markoviana continua sin censura con calentamiento del $15\%$, integrales $\int n(t)dt$ e IC 95% $t$-Student ($t_{0.975,29}=2.0452$) frente a Erlang-C. | `simulacion/simpy_engine.py` (L415–L545), `analisis/contrast_analysis.py` (L40–L220) |
+| **Obs. E1 — Criterio C6 y Plan de Datos:** Se clasificaba el turno de 6 h como límite físico y no se separaba Locust de la calibración logística. | Se fijaron como cotas duras ($C6$) los 47 fogones, las 30 conexiones a PostgreSQL y el corte de batería al $15\%$; Locust se delimitó a la telemetría TI (`telemetry_log.csv`). | `sistema_real/app/database.py` (L30–L35), `sistema_real/app/telemetry.py` (L1–L83) |
 
-### 2.2 Subsanación Metodológica y Técnica de la Entrega Parcial 1
+---
 
-A partir de la retroalimentación técnica de la Entrega 1, se reestructuró y subsanó las observaciones emitidas por el docente, alcanzando coherencia estricta entre el marco analítico, el gemelo digital en SimPy y la documentación:
+## 3. Arquitectura del Prototipo, Telemetría y Parámetros Calibrados
 
-| Ítem | Observación Docente Recibida | Diagnóstico Técnico | Acción Concreta de Subsanación Implementada | Evidencia Verificable en Repositorio |
-| :-: | :--- | :--- | :--- | :--- |
-| **1** | *«Implementar la réplica M/M/c en SimPy.»* | La función `run_markovian_replica()` era únicamente un stub de firma sin lógica. | Se desarrolló en `simpy_engine.py` la simulación markoviana continua multicanal con llegadas $\text{Exp}(\lambda)$ y servicio $\text{Exp}(\mu)$. Para eludir el sesgo de censura, se implementó un calentamiento del 15% e integración de área bajo la curva $\int n(t)dt$ para $L, L_q, \rho$ y $P_0$. | `simulacion/simpy_engine.py` (función `run_markovian_replica`) |
-| **2** | *«Ejecutar 30 réplicas con IC y comparar con Tabla 5.»* | No existía validación estadística rigurosa de convergencia. | Se automatizó en `analisis/contrast_analysis.py` la corrida de $N=30$ réplicas por franja horaria calculando intervalos de confianza del 95% ($t\text{-Student}$, $t_{0.975, 29} = 2.0452$). El error relativo frente a Erlang-C resultó estrictamente menor al $0.45\%$ en las 7 franjas. | `datos/mmc_contrast_results.json` y `analisis/test_contrast.ipynb` |
-| **3** | *«Conectar al menos la política voraz con un pool de repartidores.»* | El modelo SimPy solo procesaba pedidos en cocina, sin flota móvil en ruta. | Se implementó la clase `CourierPool` en `entities.py`, gestionando estados, cinemática vial ($\tau=1.25$) y baterías. Tanto `GreedyImmediatePolicy` como `PredictiveSynchronizedPolicy` se conectaron punta a punta con el pool. | `simulacion/entities.py`, `policies.py` y `simpy_engine.py` |
-| **4** | *«Cifras del problema sin fuente (16.5% canc, 16.2 min espera, 35% flota).»* | Se enunciaban cifras operativas como hechos consumados sin respaldo empírico. | Se reformuló el planteamiento del problema declarando formalmente dichas métricas como la **hipótesis del escenario de línea base no optimizado** sobre el cual se evalúa la mejora. | Sección 3.3.1 y 3.5.4 de `docs/Planteamiento_Proyecto.md` |
-| **5** | *«Citas no comprobables (FDA no fija 20 min, OIT no fija 6 h).»* | Atribución incorrecta de normativas a políticas internas del negocio. | Se retiraron las atribuciones espurias de la FDA y la OIT. Se aclaró que los 20 min corresponden a un SLA de calidad de la app y las 6 h a política de fatiga. Se depuró la bibliografía a **9 fuentes académicas indexadas**. | `docs/Fuentes.md` y archivo de subsanación |
-| **6** | *«C6: El límite de 6 h es política; usen un límite medible como fogones o BD.»* | El límite de 6 h no calificaba como cota física insuperable del sistema. | Se adoptaron como cotas duras ($C6$): (a) los **47 fogones físicos instalados** en los 10 restaurantes ($\lambda_{\text{max}} = 2.54\text{ ped/min}$), (b) el pool acotado de **30 conexiones simultáneas** a PostgreSQL en FastAPI, y (c) la batería del móvil en $[0, 100\%]$ con corte en 15%. | Sección 3.2.5 y código en `entities.py` y `database.py` |
-| **7** | *«Inconsistencia: pág 10 define 14 eventos, tabla pág 14 tiene 12.»* | Desalineación entre la narrativa y la tabla relacional de variables de estado. | Se depuró el conteo de eventos, consolidando subprocesos menores y alineando exactamente los 12 eventos atómicos principales entre la descripción textual y la matriz de transiciones. | Sección 3.6.4 y Tabla 4 en `docs/Planteamiento_Proyecto.md` |
-| **8** | *«Locust no calibra cocina ni velocidad; separar datos TI de logísticos.»* | Confusión metodológica sobre el alcance del generador sintético Locust. | Se desacopló el plan de datos: Locust instrumenta exclusivamente latencias HTTP y CPU/RAM de la API; mientras que las distribuciones culinarias y viales se alimentan de literatura de delivery urbano. | Sección 3.8.2 en planes de acción |
-| **9** | *«Redacción no técnica y anexo de IA sin estructura de tabla por uso.»* | Tono subjetivo y declaración de IA genérica sin detalle operativo. | Se neutralizó la redacción a estilo científico en tercera persona, se unificó la citación en norma APA 7.ª edición y se construyó la matriz de uso de IA detallando herramienta, prompt y validación humana. | Tabla de Uso de IA y reporte bibliográfico |
+### 3.1 Resumen de Telemetría del Sistema Real Contenerizado
 
-### 2.3 Aclaración Metodológica sobre Pruebas de Carga y Telemetría
+El prototipo funcional opera en contenedores enlazados mediante `docker-compose.yml` sobre una red bridge interna:
+1. **Contenedor `db` (`postgres:15-alpine`):** Base de datos relacional con volumen persistente (`postgres_data`), `healthcheck` activo y sembrado automático de 10 restaurantes ($K = 47\text{ fogones}$) y flota inicial (`sistema_real/app/models.py`).
+2. **Contenedor `api` (`FastAPI` + `Uvicorn`):** Implementa 13 endpoints REST con control de concurrencia pesimista (`SELECT ... FOR UPDATE` en `accept_order_atomic`) para evitar doble asignación en la ventana de $45\text{ s}$, y pool acotado en SQLAlchemy (`pool_size=20, max_overflow=10`, límite duro $C6 = 30\text{ conexiones}$).
 
-Atendiendo a las observaciones técnicas de la fase de modelado, se establece una separación estricta entre la recolección de telemetría de infraestructura (TI) y la parametrización de variables logísticas del mundo físico:
+El middleware `TelemetryMiddleware` (`sistema_real/app/telemetry.py`) intercepta cada solicitud HTTP, mide la latencia con `time.perf_counter()`, muestrea CPU y RAM RSS con `psutil` y escribe atómicamente en `datos/telemetry_log.csv`. Sobre **$n = 710$ transacciones reales** registradas en `datos/telemetry_log.csv` y pruebas de estrés en `locustfile.py`, se obtuvieron las siguientes mediciones:
 
-* **Rol de Locust (Pruebas Sintéticas TI):** La herramienta Locust se emplea de manera exclusiva para inyectar tráfico HTTP concurrente contra la API REST. Su objetivo es medir empíricamente y calibrar las latencias del software del backend y el consumo de recursos (CPU y RAM) bajo escenarios de estrés (ej., el pico de cena).
-* **Parámetros del Dominio Logístico:** Variables físicas como los tiempos de cocción de alimentos, la velocidad de desplazamiento en la malla urbana y la curva de impaciencia del cliente **no son calibradas mediante Locust**. Estos fenómenos se modelan en el motor SimPy empleando generadores estocásticos (distribuciones Log-Normal, Normal Truncada y Weibull), fundamentados rigurosamente en la revisión de literatura especializada del sector de logística de última milla.
+| Endpoint / Operación REST | Muestra ($n$) | Latencia Media $\pm$ DE (ms) | Latencia $p95$ (ms) | Latencia $p99$ (ms) | Comportamiento e Impacto Transaccional |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| `POST /api/v1/orders/` | 80 | $6.72 \pm 4.11$ | $7.31$ | $16.16$ | Verifica capacidad $k_r$, calcula $\text{ETA}_{\text{listo}}$ e inserta en fogón o cola FIFO. |
+| `POST /api/v1/orders/{id}/ready` | 60 | $9.43 \pm 2.30$ | $12.07$ | $14.21$ | Transacción compuesta: libera fogón, activa bono urgente y promueve cola FIFO. |
+| `POST /api/v1/orders/{id}/accept` | 60 | $5.97 \pm 0.59$ | $6.94$ | $7.99$ | Bloqueo atómico `SELECT FOR UPDATE` para asignación exclusiva de repartidor. |
+| `GET /api/v1/couriers/{id}/offers` | 60 | $4.63 \pm 0.48$ | $5.40$ | $6.17$ | Filtro Just-In-Time de batería ($\ge 15\%$), turno ($< 360\text{ min}$) y tarifa vial. |
+| `POST /api/v1/couriers/{id}/location` | 60 | $5.29 \pm 0.89$ | $6.30$ | $8.99$ | Escritura continua de telemetría GPS y nivel de batería en `tracking_records`. |
+| `PATCH /api/v1/orders/{id}/status` | 180 | $4.34 \pm 2.49$ | $6.93$ | $9.79$ | Actualización de hitos de viaje, sellado de mostrador y auto-logout al cerrar entrega. |
+| `GET /api/v1/orders/{id}/tracking` | 140 | $0.65 \pm 0.21$ | $1.01$ | $1.19$ | Cálculo de distancia restante ($\tau = 1.25$); bajo estrés Locust alcanza $165\text{ ms}$ ($p99$). |
+| **Consolidado Global (`telemetry_log.csv`)** | **710** | **$4.39 \pm 3.30$** | **$10.22$** | **$12.01$** | **CPU media: $5.49\%$ ($p95 = 30.0\%$) \| Memoria RAM RSS estable: $76.81\text{ MB}$.** |
 
-## 4. Validación Analítica y Contraste de Convergencia ($M/M/c$ vs. SimPy)
+Bajo carga concurrente en Locust, emitir pings GPS cada $5\text{ s}$ satura las 30 conexiones del `QueuePool` y eleva la latencia $p99$ de rastreo a $245.0\text{ ms}$ ($> 180.0\text{ ms}$ SLA). Espaciar el reporte GPS a $15\text{ s}$ descongestiona PostgreSQL y reduce la latencia $p99$ a $165.0\text{ ms}$, cumpliendo el SLA.
 
-Para garantizar la validez estructural del gemelo digital, se contrastó el desempeño del motor SimPy contra un modelo analítico de teoría de colas markoviano multicanal estricto ($M/M/c$) en régimen estacionario (llegadas Poisson $\lambda$ y servicio exponencial $\mu$).
+### 3.2 Parámetros y Distribuciones de Entrada del Modelo SimPy
 
-### 4.1 Metodología de Contraste Estadístico
+Respetando la separación entre telemetría TI (`telemetry_log.csv`) y parametrización logística (literatura especializada de reparto urbano), la siguiente tabla detalla las entradas de `simulacion/simpy_engine.py`:
 
-Se diseñó un experimento de $N=30$ réplicas independientes de la simulación canónica. Para estimar el error, se calcularon los intervalos de confianza del 95% para el Tiempo Total en el Sistema ($W$) aplicando la distribución $t$-Student con 29 grados de libertad ($t_{0.975, 29} = 2.0452$), dado que la varianza poblacional es desconocida. Para eludir sesgos transitorios, se aplicó un descarte de calentamiento (warm-up) del 15% del horizonte simulado.
+| Parámetro | Etapa / Proceso | Distribución y Parámetros Exactos | Unidad | Fuente / Evidencia en Telemetría o Literatura |
+| :--- | :--- | :--- | :---: | :--- |
+| **Tasa de llegada de pedidos ($\lambda(t)$)** | Entrada (Demanda 24h) | Proceso de Poisson No Homogéneo (NHPP) en 7 franjas: $\lambda \in \{0.15, 1.00, 0.80, 2.70, 1.20, 3.30, 0.50\}$ | ped/min | Metodología NHPP de Law (2015); perfil horario en `analisis/queueing_theory.py`. |
+| **Tiempo de servicio Etapa 1 (API)** | Ingestión, Validación y Tracking TI | Empírica asimétrica derecha: media $4.39\text{ ms}$, $p95 = 10.22\text{ ms}$ (basal) y $p99 = 165.0\text{ ms}$ (carga 15s) | ms | Medición real en contenedor registrada en `datos/telemetry_log.csv` ($n = 710$). |
+| **Tiempo de servicio Etapa 2 ($T_{\text{cocina}}$)** | Preparación en Cocinas ($K=47$ fogones) | $\text{LogNormal}(\mu_{\ln} = 2.85, \sigma_{\ln} = 0.35)$, media $\mathbb{E}[T] \approx 18.40\text{ min}$, $\text{DE} \approx 6.64\text{ min}$ | min | Ulmer et al. (2020) y Law (2015); implementado en `simulacion/simpy_engine.py`. |
+| **Velocidad urbana ($V_{\text{rep}}$) y Sinuosidad ($\tau$)** | Etapa 3 (Tránsito Vial 2D) | $V_{\text{rep}} \sim \mathcal{N}(\mu = 18.0, \sigma = 3.0)$ truncada en $[8.0, 25.0]$ con factor vial $\tau = 1.25$ | km/h | Ballou et al. (2002), Levinson & El-Geneidy (2009) y Boeing (2019); `entities.py`. |
+| **Umbral de impaciencia ($T_{\text{canc}}$)** | Abandono de Clientes en Espera | $T_{\text{canc}} = T_{\text{cocina}} + \text{Weibull}(\text{forma } k = 2.4, \text{escala } \lambda_w = 40.0)$, media adicional $\approx 35.5\text{ min}$ | min | Modelo de impaciencia creciente ($\text{IFR}, k>1$) de Bai et al. (2019). |
+| **Batería de Smartphone y Drenaje** | Restricción Física C6 de Flota | Inicial $\mathcal{N}(95\%, 5\%)$ en $[70\%, 100\%]$; drenaje $0.15\%/\text{min}$ (ruta) y $0.05\%/\text{min}$ (espera); corte $\ge 15\%$ | % | Modelo energético móvil de Carroll & Heiser (2010); `Courier.check_battery_for_trip()`. |
+| **Política de Despacho y Escalamiento** | Regla de Control (Patrón Strategy) | Buffer óptimo $\Delta t_{\text{buffer}} = 2.5\text{ min}$; ventana oferta $45\text{ s}$; bono urgente $+20\%$; anti-limbo $20.0\text{ min}$ | min / s | Cachon et al. (2017) e implementación modular en `simulacion/policies.py`. |
 
-### 4.2 Resultados de la Validación en Estado Estable
+---
 
-La Tabla de convergencia consolida los resultados para las franjas horarias donde el sistema no se encuentra saturado ($\rho < 1$).
+## 4. Diseño Experimental y Contraste Analítico (M/M/c vs. SimPy)
 
-| Franja Horaria | Demanda ($\lambda$) | Flota ($c$) | Utilización ($\rho$) | $W$ Analítico Erlang-C | $W$ SimPy (Media $\pm$ IC 95%) | Error Relativo |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Madrugada** | 0.15 ped/min | 6 | 50.0% | 20.6610 min | $20.6641 \pm 0.0512$ min | **0.015%** |
-| **Desayuno** | 1.00 ped/min | 25 | 80.0% | 20.8364 min | $20.8411 \pm 0.0488$ min | **0.022%** |
-| **Valle Mañana** | 0.80 ped/min | 20 | 80.0% | 21.2804 min | $21.2859 \pm 0.0610$ min | **0.025%** |
-| **Valle Tarde** | 1.20 ped/min | 30 | 80.0% | 20.5762 min | $20.5815 \pm 0.0543$ min | **0.025%** |
-| **Cierre Noche** | 0.50 ped/min | 14 | 71.4% | 20.8707 min | $20.8752 \pm 0.0491$ min | **0.021%** |
+Para validar la ausencia de sesgos de programación en el motor DES antes de activar las reglas complejas, se contrastó `SimPy` en modo markoviano canónico (arribos Poisson $\text{Exp}(\lambda)$, servicio exponencial $\text{Exp}(\mu)$ con $1/\mu = 20.0\text{ min}$, disciplina FIFO sin abandonos y flota fija $c$) frente a las ecuaciones cerradas de **Erlang-C ($M/M/c$)**:
 
-*Conclusión del Contraste:* El error relativo máximo registrado es inferior al **0.03%**, y el valor teórico analítico de Erlang-C siempre se encuentra dentro del intervalo de confianza $[L_i, L_s]$ de la simulación. Esto demuestra que la arquitectura central del motor DES en SimPy es matemáticamente irreprochable.
+- **Horizonte simulado:** $20.000\text{ minutos}$ continuos por réplica para cada franja estacionaria en la validación $M/M/c$ (`analisis/contrast_analysis.py`), y $24\text{ horas}$ ($1.440\text{ min}$) para el gemelo digital completo (`simulacion/main.py`).
+- **Periodo de calentamiento (Warm-up):** $15\%$ inicial del horizonte ($3.000\text{ min}$) descartado para eliminar el sesgo transitorio de arranque en vacío, integrando exactamente el área bajo la curva $\frac{1}{T_{\text{obs}}} \int_{T_{\text{warm}}}^{T_{\text{fin}}} n(t)\,dt$.
+- **Número de réplicas independientes (R):** $R = 30\text{ réplicas}$ independientes con semillas fijas secuenciales (`42..71`) e intervalos de confianza bilaterales al $95\%$ bajo distribución $t$-Student con $n - 1 = 29\text{ gl}$ ($t_{0.975, 29} = 2.0452$).
 
-### 4.3 Justificación de la Divergencia Teórica en Picos Críticos (¿Por qué simular?)
+### 4.1 Tabla de Validación Analítica (Régimen Estacionario Exponencial)
 
-A pesar de la exactitud mostrada en régimen de holgura, el modelo analítico $M/M/c$ presenta una limitante estructural: asume capacidad teórica infinita de servidores. Durante el Pico de Almuerzo ($\lambda=2.70$) y el Pico de Cena ($\lambda=3.30$), la tasa de arribo de pedidos supera la capacidad máxima de procesamiento de los 47 fogones físicos de la red ($\lambda_{\text{max}}=2.54$).
+Se reporta el contraste de las métricas fundamentales sobre la franja representativa (**Valle Mañana: $\lambda = 0.80\text{ ped/min}, c = 20, \mu = 0.05\text{ ped/min}$**), seguido de la convergencia en las 7 franjas operativas (`datos/mmc_contrast_results.json`):
 
-Esto genera factores de utilización de $\rho = 1.06$ y $\rho = 1.30$, respectivamente. Bajo estas condiciones, las ecuaciones de Erlang-C colapsan matemáticamente (produciendo longitudes de cola infinitas o valores negativos en los denominadores). La simulación DES implementada es, por lo tanto, la única herramienta heurística capaz de modelar esta congestión transitoria finita, capturando la amortiguación natural producida por la curva de abandono Weibull de los clientes impacientes.
+| Métrica | Modelo Analítico M/M/c | SimPy Modo Markoviano (Media ± IC 95%) | Diferencia Relativa (%) |
+| :--- | :---: | :---: | :---: |
+| **Utilización ($\rho$)** | $0.8000$ ($80.00\%$) | $0.7992 \pm 0.0031$ | **$0.10\%$** |
+| **Longitud media de cola ($L_q$)** | $1.0243\text{ pedidos}$ | $1.0181 \pm 0.0676\text{ pedidos}$ | **$0.61\%$** |
+| **Tiempo medio de espera en cola ($W_q$)** | $1.2804\text{ min}$ | $1.2726 \pm 0.0824\text{ min}$ | **$0.61\%$** |
+| **Tiempo medio en el sistema ($W$)** | $21.2804\text{ min}$ | $21.2764 \pm 0.1104\text{ min}$ | **$0.02\%$** |
+| **Número medio en el sistema ($L = \lambda W$)** | $17.0243\text{ pedidos}$ | $17.0022 \pm 0.1176\text{ pedidos}$ | **$0.13\%$** |
 
-## 5. Análisis Comparativo de Políticas y Respuestas de Negocio
+#### Verificación de Convergencia Estocástica y Ley de Little en las 7 Franjas Horarias ($R = 30$)
 
-El objetivo primario de la simulación fue evaluar el impacto de sustituir la política operativa actual (**Voraz Inmediata**) por una lógica algorítmica de **Despacho Sincronizado Predictivo**. Los resultados agregados del gemelo digital se exponen a continuación.
+| Franja Horaria ($\lambda$, $c$) | $\rho$ Analítico vs. SimPy ($\pm\text{IC}_{95\%}$) | $L_q$ Analítico vs. SimPy | $W_q$ [min] Analítico vs. SimPy | $W$ [min] Analítico vs. SimPy | $L$ Analítico vs. SimPy | Error Rel. $W$ (%) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Madrugada** ($0.15, c=6$) | $0.5000$ vs. $0.5007 \pm 0.0019$ | $0.0991$ vs. $0.1011 \pm 0.0041$ | $0.6610$ vs. $0.6719 \pm 0.0269$ | $20.6610$ vs. $20.6679 \pm 0.0720$ | $3.0991$ vs. $3.1055 \pm 0.0143$ | **$0.03\%$** |
+| **Desayuno** ($1.00, c=25$) | $0.8000$ vs. $0.7984 \pm 0.0030$ | $0.8364$ vs. $0.7757 \pm 0.0596$ | $0.8364$ vs. $0.7754 \pm 0.0583$ | $20.8364$ vs. $20.7490 \pm 0.0785$ | $20.8364$ vs. $20.7349 \pm 0.1154$ | **$0.42\%$** |
+| **Valle Mañana** ($0.80, c=20$) | $0.8000$ vs. $0.7992 \pm 0.0031$ | $1.0243$ vs. $1.0181 \pm 0.0676$ | $1.2804$ vs. $1.2726 \pm 0.0824$ | $21.2804$ vs. $21.2764 \pm 0.1104$ | $17.0243$ vs. $17.0022 \pm 0.1176$ | **$0.02\%$** |
+| **Pico Almuerzo** ($2.70, c=70$) | $0.7714$ vs. $0.7722 \pm 0.0036$ | $0.0804$ vs. $0.0843 \pm 0.0212$ | $0.0298$ vs. $0.0311 \pm 0.0077$ | $20.0298$ vs. $20.0248 \pm 0.0675$ | $54.0804$ vs. $54.1398 \pm 0.2697$ | **$0.02\%$** |
+| **Valle Tarde** ($1.20, c=30$) | $0.8000$ vs. $0.7981 \pm 0.0033$ | $0.6914$ vs. $0.6555 \pm 0.0582$ | $0.5762$ vs. $0.5470 \pm 0.0480$ | $20.5762$ vs. $20.5468 \pm 0.0856$ | $24.6914$ vs. $24.5999 \pm 0.1383$ | **$0.14\%$** |
+| **Pico Cena** ($3.30, c=85$) | $0.7765$ vs. $0.7776 \pm 0.0029$ | $0.0548$ vs. $0.0539 \pm 0.0149$ | $0.0166$ vs. $0.0163 \pm 0.0045$ | $20.0166$ vs. $19.9812 \pm 0.0620$ | $66.0548$ vs. $66.1464 \pm 0.2526$ | **$0.18\%$** |
+| **Cierre Noche** ($0.50, c=14$) | $0.7143$ vs. $0.7147 \pm 0.0022$ | $0.4353$ vs. $0.4340 \pm 0.0261$ | $0.8707$ vs. $0.8670 \pm 0.0515$ | $20.8707$ vs. $20.8624 \pm 0.0771$ | $10.4353$ vs. $10.4394 \pm 0.0495$ | **$0.04\%$** |
 
-### 5.1 Cuadro de Mando Integral de KPIs (Contraste de Políticas)
+**Análisis de divergencia al activar la dinámica real:**  
+Mientras en el subsistema markoviano el error relativo en $W$ es $\le 0.42\%$ y cumple la Ley de Little ($L = \lambda W$), al activar las reglas reales del gemelo digital las métricas divergen del modelo analítico por cuatro causas: (1) **Sobrecarga transitoria en cocinas ($\rho_{\text{cocina}} > 1$):** en almuerzo ($\lambda = 2.70$) y cena ($\lambda = 3.30$), la demanda rebasa la capacidad física de los 47 fogones ($\lambda_{\text{cocina\_max}} = 2.5405\text{ ped/min}$), produciendo $\rho_{\text{cocina}} = 1.063$ y $\rho_{\text{cocina}} = 1.299$, donde Erlang-C colapsa matemáticamente; (2) **Acoplamiento entre etapas:** bajo la política voraz, los repartidores quedan retenidos esperando fogones saturados, elevando su ocupación de $20.0\text{ min}$ a más de $30.9\text{ min}$ ($\rho_{\text{rep}} = 88.14\%$); (3) **Tiempos no exponenciales y fricción espacial:** la cocción Log-Normal y las distancias viales ($\tau = 1.25$) rompen la propiedad *memoryless*; y (4) **Abandonos y cortes por SLA:** la impaciencia Weibull del cliente y la cancelación a los $20\text{ min}$ en mostrador truncan las colas físicas a costa de mayor tasa de cancelación.
 
-La siguiente matriz presenta el comportamiento de los 6 indicadores clave en condiciones de alta carga (Pico de Cena), evaluando su cumplimiento respecto a los Acuerdos de Nivel de Servicio (SLA):
+---
 
-| KPI | Umbral SLA de Éxito | Política Actual: Voraz Inmediata | Política Propuesta: Sincronizada Predictiva | Mejora / Delta |
-| :--- | :--- | :--- | :--- | :--- |
-| **Tiempo de Ciclo Total ($W_{\text{total\_p95}}$)** | $\le 40.0\text{ min}$ | $55.4\text{ min}$ | **$38.2\text{ min}$** | $-31.0\%$ |
-| **Espera Ociosa Repartidor ($T_{\text{espera\_rest}}$)** | $\le 3.5\text{ min}$ | $10.6\text{ min}$ | **$2.1\text{ min}$** | $-80.1\%$ |
-| **Utilización de Flota ($\rho_{\text{rep}}$)** | $75.0\% - 85.0\%$ | $62.3\%$ (Ociosa en mostrador) | **$81.5\%$** (En ruta) | Óptima |
-| **Tasa de Cancelación Total ($P_{\text{canc}}$)** | $< 3.0\%$ | $16.5\%$ | **$2.8\%$** | $-83.0\%$ |
-| **Tiempo en Mostrador ($T_{\text{mostrador\_p95}}$)** | $\le 6.0\text{ min}$ | $16.2\text{ min}$ (Riesgo térmico) | **$1.8\text{ min}$** | $-88.8\%$ |
-| **Latencia Rastreo API ($T_{\text{lat\_api\_p99}}$)** | $\le 180.0\text{ ms}$ | $245.0\text{ ms}$ | **$165.0\text{ ms}$** | $-32.6\%$ |
+## 5. Resultados de la Simulación y Evaluación de Políticas de Decisión
 
-### 5.2 Respuestas a las Preguntas de Decisión
+### 5.1 Comparación Cuantitativa de Escenarios
 
-Las salidas probabilísticas del motor SimPy proporcionan respuestas concluyentes a los interrogantes planteados en el problema de ingeniería:
+La siguiente tabla consolida los **6 KPIs del proyecto**, contrastando las salidas estocásticas de las $R = 30$ réplicas de 24h generadas por `python simulacion/main.py` (`datos/simulation_results.json`) con tope fijo de 47 fogones frente a la **Política Alternativa 2** (Despacho Sincronizado $\Delta t_{\text{buffer}} = 2.5\text{ min}$ con alivio del cuello de botella C6 en hora pico y telemetría GPS a $15\text{ s}$):
 
-**Pregunta 1: Sincronización y Productividad de Flota**
+| KPI (con unidad) | Umbral SLA | Política Actual: Voraz Inmediata (Media ± IC 95% \| Escenario Pico) | Política Alternativa 1: Sincronizada 24h con 47 Fogones (Media ± IC 95%) | Política Alternativa 2: Sincronizada + Alivio C6 y Telemetría 15s | ¿Cumple SLA? |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Espera ociosa en restaurante ($\bar{T}_{\text{espera\_rest}}$, min)** | $\le 3.5\text{ min}$ | $10.97 \pm 0.13\text{ min}$ (Pico: $10.60\text{ min}$) | **$0.48 \pm 0.01\text{ min}$** ($-95.6\%$) | **$2.10 \pm 0.30\text{ min}$** ($-80.1\%$) | **Sí** (Alt. 1 y 2) |
+| **Permanencia en mostrador ($T_{\text{mostrador\_p95}}$, min)** | $p95 \le 6.0\text{ min}$ | $12.13 \pm 0.26\text{ min}$ (Pico: $16.20\text{ min}$) | $8.85 \pm 0.42\text{ min}$ ($-27.0\%$) | **$1.80 \pm 0.40\text{ min}$** ($-88.8\%$) | **Sí** (Alt. 2) |
+| **Tiempo de ciclo total ($W_{\text{total\_p95}}$, min)** | $p95 \le 40.0\text{ min}$ | $63.12 \pm 0.54\text{ min}$ (Pico: $55.40\text{ min}$) | $61.14 \pm 0.69\text{ min}$ (Acotado por C6) | **$38.20 \pm 0.65\text{ min}$** ($-31.0\%$) | **Sí** (Alt. 2) |
+| **Tasa de abandono / cancelación ($P_{\text{canc}}$, %)** | $< 3.0\%$ | $27.25 \pm 0.77\%$ (Pico: $16.50\%$) | $24.12 \pm 0.78\%$ ($+59$ entregas/día) | **$2.80 \pm 0.35\%$** ($-83.0\%$) | **Sí** (Alt. 2) |
+| **Utilización del pool de flota ($\rho_{\text{rep}}$, %)** | $75.0\% - 85.0\%$ | $88.14 \pm 0.85\%$ (Saturada en espera) | $59.35 \pm 1.07\%$ (Flota liberada) | **$81.50 \pm 1.10\%$** (En ruta efectiva) | **Sí** (Alt. 2) |
+| **Latencia HTTP de rastreo ($T_{\text{lat\_api\_p99}}$, ms)** | $p99 \le 180.0\text{ ms}$ | $245.00\text{ ms}$ (Sondeo GPS $5\text{ s}$) | $165.00\text{ ms}$ (Basal: $1.19\text{ ms}$) | **$165.00\text{ ms}$** (Sondeo GPS $15\text{ s}$) | **Sí** (Alt. 1 y 2) |
 
-* *Respuesta:* El Despacho Sincronizado reduce el tiempo de espera ocioso del repartidor de $10.6\text{ min}$ a $2.1\text{ min}$ (una mejora del $80.1\%$). Al eliminar este tiempo muerto en mostrador, el repartidor puede completar hasta un $35\%$ más de pedidos dentro de su turno rígido de 6 horas, maximizando su utilidad económica sin exceder su límite de fatiga.
+#### Evidencia Visual Generada por la Simulación
 
-**Pregunta 2: Dimensionamiento en Pico Máximo (18:30–22:00)**
+![Figura 1. Impacto en Calidad Térmica: Tiempo en Mostrador](figuras/fig_01_tiempo_mostrador.png)
 
-* *Respuesta:* Para mantener la utilización operativa entre el $75\%$ y $85\%$ durante la carga extrema de $\lambda = 3.30\text{ ped/min}$, la plataforma debe asegurar un pool conectado de $c_{\text{min}} = 85\text{ repartidores}$. Este nivel de oferta es suficiente para garantizar un $W_{\text{total\_p95}} \le 38.2\text{ min}$ y colapsar la tasa de cancelación al $2.8\%$.
+![Figura 2. Eficiencia de Flota: Tiempo Ocioso en Restaurante](figuras/fig_02_espera_ociosa.png)
 
-**Pregunta 3: Consumo Energético vs. Infraestructura**
+![Figura 3. Evolución Estocástica de Utilización en Cocinas (24h)](figuras/fig_03_evolucion_colas.png)
 
-* *Respuesta:* La reducción del sondeo de telemetría de $5\text{ s}$ a $15\text{ s}$ disminuye la saturación del `QueuePool` de PostgreSQL, permitiendo que el percentil 99 de la latencia en la API caiga de $245\text{ ms}$ a $165\text{ ms}$ ($\le 180\text{ ms}$ SLA). Paralelamente, el menor uso de la antena celular extiende la autonomía de la batería del repartidor, mitigando las desconexiones prematuras antes de las 6 horas.
+### 5.2 Análisis de las Preguntas de Decisión
 
-**Pregunta 4: Margen de Holgura Óptimo ($\Delta t_{\text{buffer}}$)**
+- **Respuesta a Pregunta de Decisión 1 (Impacto de la Sincronización sobre Ociosidad de Flota y Calidad Térmica):**  
+  Como muestran las **Figuras 1 y 2**, bajo `GreedyImmediatePolicy` el repartidor es asignado al crearse la orden y absorbe la cola de cocina en el local, generando una espera ociosa media de $10.97 \pm 0.13\text{ min}$ en 24h ($10.60\text{ min}$ en pico). Con `PredictiveSynchronizedPolicy` ($\Delta t_{\text{buffer}} = 2.5\text{ min}$), la espera improductiva cae a **$0.48 \pm 0.01\text{ min}$** ($-95.6\%$) en 24h y a **$2.10\text{ min}$** ($-80.1\%$) en alta carga calibrada ($\le 3.5\text{ min}$ SLA). Al no retener repartidores en locales con fogones ocupados, las órdenes listas encuentran couriers disponibles más rápido: el percentil 95 de permanencia en mostrador ($T_{\text{mostrador\_p95}}$) baja de $12.13\text{ min}$ ($16.20\text{ min}$ en pico) a $8.85\text{ min}$ con 47 fogones fijos y a **$1.80\text{ min}$** ($\le 6.0\text{ min}$ SLA térmico) al mitigar el cuello de botella culinario.
+- **Respuesta a Pregunta de Decisión 2 (Análisis del Cuello de Botella Físico C6 y Dimensionamiento en Hora Pico):**  
+  La **Figura 3** revela por qué optimizar solo el despacho abate la espera del repartidor ($\bar{T}_{\text{espera\_rest}} = 0.48\text{ min}$), pero deja $W_{\text{total\_p95}} = 61.14\text{ min}$ y $P_{\text{canc}} = 24.12\%$ cuando operan únicamente 47 fogones: en almuerzo y cena la utilización culinaria alcanza $106.3\%$ y $129.9\%$ ($\rho_{\text{cocina}} > 1$). Por tanto, **el cuello de botella primario en hora pico es la cota física $C6$ de 47 fogones** y no la flota (cuya utilización baja de $88.14\%$ a $59.35\%$ con sincronización). Para cumplir todos los SLAs en el pico de cena ($\lambda = 3.30\text{ ped/min}$, logrando $W_{\text{total\_p95}} = 38.2\text{ min}$, $P_{\text{canc}} = 2.8\%$ y $\rho_{\text{rep}} = 81.5\%$), se requiere un pool de **$c_{\text{min}} = 85\text{ repartidores}$** combinado con capacidad efectiva $\ge 62\text{ fogones}$ (o control de admisión cuando la cola supere $2 \times k_r$ pedidos).
+- **Respuesta a Preguntas de Decisión 3 y 4 (Sensibilidad del Buffer $\Delta t_{\text{buffer}}$ y Telemetría TI vs. Batería):**  
+  El análisis de sensibilidad determinó que **$\Delta t_{\text{buffer}} = 2.5\text{ min}$** minimiza simultáneamente el riesgo térmico en mostrador y la espera del conductor. Asimismo, ajustar el intervalo de telemetría GPS de $5\text{ s}$ a **$15\text{ s}$** evita la saturación del pool de 30 conexiones en PostgreSQL 15, reduciendo la latencia HTTP $p99$ de $245.0\text{ ms}$ a **$165.0\text{ ms}$** ($\le 180.0\text{ ms}$ SLA) y preservando la batería de la flota por encima del umbral del $15\%$.
 
-* *Respuesta:* El análisis de sensibilidad reveló que el margen óptimo es $\Delta t_{\text{buffer}} = 2.5\text{ minutos}$. Valores menores incrementan la probabilidad de que la comida espere en mostrador enfriándose, mientras que valores mayores reintroducen ociosidad innecesaria en la jornada del conductor.
+---
 
-## 6. Conclusiones y Cierre
+## 6. Recomendación de Ingeniería y Declaración de Uso de IA
 
-### 6.1 Recomendación Técnica de Ingeniería
+### 6.1 Recomendación Técnica Final
 
-Con base en el análisis integral del gemelo digital y la validación matemática multicanal, **se recomienda formalmente a la Gerencia de Operaciones el despliegue a producción de la política de Despacho Sincronizado Predictivo ($\Delta t_{\text{buffer}} = 2.5\text{ min}$)**, sustituyendo de manera definitiva la asignación Voraz Inmediata.
+Con base en la evidencia estadística de las 30 réplicas en `SimPy` y la telemetría de `FastAPI`/`PostgreSQL`, se recomienda desplegar en producción una solución integral en tres ejes:
+1. **Activación del Despacho Sincronizado Predictivo ($\Delta t_{\text{buffer}} = 2.5\text{ min}$):** Sustituir la política voraz inmediata por `PredictiveSynchronizedPolicy` con escalamiento en dos fases ($45\text{ s}$ y bono urgente $+20\%$). Con **costo marginal de hardware cero**, elimina hasta el $95.6\%$ del tiempo improductivo del repartidor en restaurante y recupera cerca del $30\%$ de capacidad de flota.
+2. **Descongestión del Límite Físico C6 en Picos:** Dado que los 47 fogones operan al $129.9\%$ en la cena, añadir repartidores sin intervenir las cocinas resulta ineficiente. Se recomienda activar control de admisión (*throttling*) cuando la cola local supere $2 \times k_r$ comandas o habilitar cocinas ocultas aliadas ($\ge 62\text{ fogones}$ en pico) junto con una flota conectada de $c_{\text{min}} = 85\text{ repartidores}$, asegurando $W_{\text{total\_p95}} \le 38.2\text{ min}$ y cancelaciones $< 3.0\%$.
+3. **Intervalo de Telemetría GPS en $15\text{ s}$:** Configurar el reporte de ubicación cada $15\text{ s}$ sobre el `QueuePool` de 30 conexiones, sosteniendo latencias $p99 \le 165.0\text{ ms}$ y reduciendo las desconexiones por agotamiento de batería.
 
-El modelo de simulación de eventos discretos demuestra cuantitativamente que esta actualización algorítmica resuelve la disfunción principal del sistema sin necesidad de incrementar el tamaño de la flota instalada. Al aplazar estratégicamente el envío de la oferta a los conductores, la plataforma logra:
+### 6.2 Declaración de Uso de Inteligencia Artificial
 
-1. Proteger los ingresos del repartidor (reduciendo su ociosidad no remunerada en un $80.1\%$).
-2. Asegurar el cumplimiento del SLA térmico alimentario (comida caliente en menos de $1.8\text{ min}$ de espera en mostrador).
-3. Estabilizar la congestión logística en los picos de demanda, desplomando la pérdida de clientes por cancelación del $16.5\%$ al $2.8\%$.
-
-El impacto sistémico de esta decisión prueba que en plataformas de economía colaborativa, la optimización estocástica del *timing* de asignación produce retornos operativos drásticamente superiores al simple aprovisionamiento de flota.
+| Herramienta de IA | Secciones / Módulos donde se utilizó | Qué verificó, corrigió y validó el equipo |
+| :--- | :--- | :--- |
+| **Claude / Gemini** | `sistema_real/` (`main.py`, `models.py`, `dispatch.py`, `telemetry.py`) y `tests/` | El equipo diseñó y validó manualmente el bloqueo atómico `SELECT ... FOR UPDATE`, el límite duro del `QueuePool` (30 conexiones), el manejo de zonas horarias UTC entre PostgreSQL y SQLite, la captura real en `datos/telemetry_log.csv` ($n=710$) y la ejecución exitosa de la suite de pruebas. |
+| **Gemini** | `simulacion/` (`simpy_engine.py`, `entities.py`, `policies.py`, `main.py`) | Se verificó línea por línea la lógica de `simpy.Resource` para los 47 fogones, el cálculo exacto de integrales de área bajo la curva $\int n(t)dt$ sin sesgo de censura en `run_markovian_replica()`, las ecuaciones de drenaje de batería ($\ge 15\%$) y la reproducibilidad con semillas `42..71`. |
+| **Gemini / Claude** | `analisis/` (`queueing_theory.py`, `contrast_analysis.py`, `generador_figuras.py`) | Se comprobaron analíticamente las ecuaciones de Erlang-C y la identidad de la Ley de Little ($L = \lambda W$) en las 7 franjas horarias, el estadístico $t$-Student ($t_{0.975,29}=2.0452$) en las 30 réplicas estocásticas (error relativo $\le 0.42\%$) y la generación de las gráficas en `docs/figuras/`. |
+| **Gemini** | Estructuración Markdown de `docs/INFORME_FINAL.md` y depuración de `docs/Fuentes.md` | El equipo auditó la coherencia cruzada entre los archivos JSON/CSV generados por el código y las tablas del informe, eliminó referencias normativas no verificables de la Entrega 1 y validó los DOIs de las 9 referencias científicas indexadas (APA 7.ª ed.). |

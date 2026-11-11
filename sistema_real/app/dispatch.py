@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
-from sistema_real.app.models import OrderModel, CourierModel, RestaurantModel, TrackingRecordModel, utcnow
+from sistema_real.app.models import OrderModel, CourierModel, RestaurantModel, TrackingRecordModel, utcnow, ensure_utc
 from sistema_real.app.config import system_config
 
 
@@ -47,7 +47,7 @@ def promote_next_kitchen_order(restaurant_id: int, db: Session):
 def check_anti_limbo_timeout(order: OrderModel, db: Session) -> bool:
     """Verifica el protocolo anti-limbo (D-07): cancela si lleva >= 20 min en mostrador sin repartidor."""
     if order.status == "LISTO_EN_MOSTRADOR" and order.courier_id is None and order.t_listo is not None:
-        dwell_min = (utcnow() - order.t_listo).total_seconds() / 60.0
+        dwell_min = (utcnow() - ensure_utc(order.t_listo)).total_seconds() / 60.0
         if dwell_min >= system_config.anti_limbo_max_counter_min:
             order.status = "CANCELADO_SIN_REPARTIDOR"
             order.cancellation_reason = "COUNTER_TIMEOUT_20MIN"
@@ -63,7 +63,7 @@ def get_qualified_offers_for_courier(courier_id: int, db: Session) -> List[dict]
         return []
 
     # Verificación dura de límite de turno (6 horas = 360 min)
-    shift_min = (utcnow() - courier.shift_start_time).total_seconds() / 60.0
+    shift_min = (utcnow() - ensure_utc(courier.shift_start_time)).total_seconds() / 60.0
     if shift_min >= system_config.max_shift_duration_min:
         courier.is_active = False
         courier.is_available = False
@@ -180,7 +180,7 @@ def transition_order_status(order_id: int, courier_id: int, new_status: str, coo
         if courier:
             courier.is_available = True
             # Regla D-08: Verificar si cumplió 6h o batería < 15% al finalizar entrega
-            shift_min = (now - courier.shift_start_time).total_seconds() / 60.0
+            shift_min = (now - ensure_utc(courier.shift_start_time)).total_seconds() / 60.0
             if shift_min >= system_config.max_shift_duration_min or courier.battery_level < system_config.min_battery_threshold_pct:
                 courier.is_active = False
                 courier.is_available = False
