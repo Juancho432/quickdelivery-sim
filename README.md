@@ -86,11 +86,14 @@ Para ejecutar las $R = 30$ réplicas estocásticas independientes de 24 horas (s
 python simulacion/main.py
 ```
 
-Comandos adicionales para reproducir la tabla de contraste analítico $M/M/c$ (`datos/mmc_contrast_results.json`) y regenerar las gráficas de `docs/figuras/`:
+Comandos adicionales para reproducir los contrastes analíticos y de sensibilidad de `docs/INFORME_FINAL.md`:
 
 ```bash
 # Ejecutar contraste analítico M/M/c vs. SimPy markoviano (30 réplicas por franja)
 python analisis/contrast_analysis.py
+
+# Ejecutar barrido de sensibilidad de delta_t_buffer [0..5 min] (Pregunta de Decisión 4)
+python analisis/sensibilidad_buffer.py
 
 # Regenerar las figuras científicas en docs/figuras/
 python analisis/generador_figuras.py
@@ -280,12 +283,14 @@ Modelos - PA/
 ├── analisis/                      # Contrastes analíticos M/M/c, Ley de Little y visualización
 │   ├── queueing_theory.py         # Ecuaciones cerradas de Erlang-C y Ley de Little
 │   ├── contrast_analysis.py       # Contraste de 30 réplicas M/M/c vs SimPy con IC 95%
+│   ├── sensibilidad_buffer.py     # Barrido paramétrico de delta_t_buffer (Pregunta de Decisión 4)
 │   ├── generador_figuras.py       # Generador de gráficas científicas con bandas de IC y SLA
 │   └── test_contrast.ipynb        # Notebook interactivo de validación estadística
 ├── datos/                         # Persistencia de telemetría real y resultados de simulación
 │   ├── telemetry_log.csv          # Telemetría real capturada en los endpoints de la API (n=710)
 │   ├── simulation_results.json    # Salidas reales de 30 réplicas SimPy 24h (Voraz vs Sincronizada)
-│   └── mmc_contrast_results.json  # Resultados de 30 réplicas SimPy vs M/M/c analítico (7 franjas)
+│   ├── mmc_contrast_results.json  # Resultados de 30 réplicas SimPy vs M/M/c analítico (7 franjas)
+│   └── sensibilidad_buffer_results.json # Salidas del barrido de sensibilidad de delta_t_buffer (0..5 min)
 └── docs/                          # Documentación técnica del proyecto de aula
     ├── INFORME_FINAL.md           # Informe Final Unificado oficial (6 secciones obligatorias)
     ├── figuras/                   # Gráficas generadas por la simulación (fig_01 a fig_03)
