@@ -21,7 +21,7 @@
 El sistema aborda el problema de la **desincronización entre la preparación en cocina y el arribo del repartidor**:
 
 * **Política Actual (Línea Base):** Asignación Voraz Inmediata, modelada bajo la hipótesis de escenario operativo donde el repartidor arriba de forma prematura y espera inactivo en el restaurante hasta la salida del pedido de cocina ($\approx 10.6\text{ min}$ en SimPy), consumiendo tiempo de turno y drenando su batería.
-* **Política Propuesta (Alternativa):** Despacho Sincronizado Predictivo ($t_{\text{despacho}} = \text{ETA}_{\text{listo}} - t_{\text{viaje}} + \Delta t_{\text{buffer}}$) con cinemática vial corregida por sinuosidad urbana ($\tau = 1.25$), filtro preventivo de reserva de batería ($\ge 15\%$), límite de turno por política operacional ($t_{\text{turno}} \le 6\text{ h}$) y respeto a la capacidad física instalada de $K = 47\text{ fogones}$ totales en la red.
+* **Política Propuesta (Alternativa):** Despacho Sincronizado Predictivo ($t\sb{\text{despacho}} = \text{ETA}\sb{\text{listo}} - t\sb{\text{viaje}} + \Delta t\sb{\text{buffer}}$) con cinemática vial corregida por sinuosidad urbana ($\tau = 1.25$), filtro preventivo de reserva de batería ($\ge 15$\%), límite de turno por política operacional ($t\sb{\text{turno}} \le 6\text{ h}$) y respeto a la capacidad física instalada de $K = 47$ fogones totales en la red.
 
 ---
 
@@ -44,9 +44,9 @@ flowchart TD
         CSV["datos/telemetry_log.csv"]
     end
 
-    A -->|HTTP :8000| API
-    API -->|TCP :5432 (Internal Bridge)| DB
-    API -->|Montaje Bind ./datos| CSV
+    A -->|"HTTP :8000"| API
+    API -->|"TCP :5432 - Bridge Interno"| DB
+    API -->|"Montaje Bind ./datos"| CSV
 ```
 
 ---
@@ -59,7 +59,7 @@ flowchart TD
 
 ### 3.1 Comando Único para Levantar el Contenedor de la API y PostgreSQL 15:
 
-Para construir las imágenes, inicializar PostgreSQL 15, sembrar la base de datos ($10$ restaurantes con $K = 47\text{ fogones}$ y flota inicial) y levantar la API REST con captura activa de telemetría (`datos/telemetry_log.csv`):
+Para construir las imágenes, inicializar PostgreSQL 15, sembrar la base de datos (10 restaurantes con $K = 47$ fogones y flota inicial) y levantar la API REST con captura activa de telemetría (`datos/telemetry_log.csv`):
 
 ```bash
 docker compose up --build -d
@@ -79,7 +79,7 @@ docker compose down
 
 ### 3.2 Comando Único para Ejecutar los Experimentos de SimPy y Reproducir las Tablas de `docs/INFORME_FINAL.md`:
 
-Para ejecutar las $R = 30$ réplicas estocásticas independientes de $24\text{ h}$ (semillas $42 \dots 71$) comparando la **Política Voraz (`greedy`)** vs. la **Política Sincronizada (`synchronized`)** con intervalos de confianza al $95\%$ ($t\text{-Student}$) y exportar los resultados a `datos/simulation_results.json`:
+Para ejecutar las $R = 30$ réplicas estocásticas independientes de $24\text{ h}$ (semillas $42 \dots 71$) comparando la **Política Voraz (`greedy`)** vs. la **Política Sincronizada (`synchronized`)** con intervalos de confianza al $95$\% ($t$-Student) y exportar los resultados a `datos/simulation_results.json`:
 
 ```bash
 python simulacion/main.py
@@ -127,28 +127,28 @@ sequenceDiagram
 
 ### 👤 Clientes
 
-* `POST /api/v1/orders/`: Ingesta y persistencia de pedidos. Evalúa capacidad de cocina ($k_r$) y asigna a cocción (`EN_PREPARACION`) o cola (`EN_COLA_COCINA`).
+* `POST /api/v1/orders/`: Ingesta y persistencia de pedidos. Evalúa capacidad de cocina ($k\sb{r}$) y asigna a cocción (`EN_PREPARACION`) o cola (`EN_COLA_COCINA`).
 * `GET /api/v1/orders/{order_id}/tracking`: Rastreo GPS en tiempo real de posición cartesiana del courier, distancia restante y estado de viaje.
 * `POST /api/v1/orders/{order_id}/cancel`: Cancelación voluntaria del cliente por impaciencia ($\sim \text{Weibull}(\alpha, \beta)$), liberando fogón o repartidor.
 
 ### 🍳 Restaurantes (KDS)
 
-* `GET /api/v1/restaurants/{restaurant_id}/orders`: Pantalla KDS de cocina (**sin ingredientes ni recetas, Exclusión 2**). Evalúa merma anti-limbo ($t_{\text{mostrador}} \ge 20\text{ min}$).
+* `GET /api/v1/restaurants/{restaurant_id}/orders`: Pantalla KDS de cocina (**sin ingredientes ni recetas, Exclusión 2**). Evalúa merma anti-limbo ($t\sb{\text{mostrador}} \ge 20\text{ min}$).
 * `POST /api/v1/orders/{order_id}/ready`: Notificación de comanda lista en mostrador (Decisión D-09). Libera fogón y **promueve automáticamente la siguiente orden en cola FIFO**.
 
 ### 🛵 Repartidores
 
-* `POST /api/v1/couriers/login`: Inicio de turno de $6\text{ h}$, registro de batería inicial ($\sim \mathcal{N}(95\%, 5\%)$) y disponibilidad.
+* `POST /api/v1/couriers/login`: Inicio de turno de $6\text{ h}$, registro de batería inicial ($\sim \mathcal{N}(95, 5)$%) y disponibilidad.
 * `POST /api/v1/couriers/{courier_id}/location`: Pings periódicos de telemetría GPS y batería (insumo para Pregunta 3: $5\text{ s}$ vs $15\text{ s}$).
-* `GET /api/v1/couriers/{courier_id}/offers`: Consulta Just-In-Time de ofertas calificadas (filtros de batería $\ge 15\%$, turno $< 6\text{ h}$ y ventana de $45\text{ s}$).
+* `GET /api/v1/couriers/{courier_id}/offers`: Consulta Just-In-Time de ofertas calificadas (filtros de batería $\ge 15$\%, turno $< 6\text{ h}$ y ventana de $45\text{ s}$).
 * `POST /api/v1/orders/{order_id}/accept`: Aceptación atómica concurrente en ventana de $45\text{ s}$ con `SELECT FOR UPDATE`.
-* `PATCH /api/v1/orders/{order_id}/status`: Hitos físicos: arribo, recogida (sellado de tiempo en mostrador $t_{\text{mostrador}}$) y entrega final con logout forzado si cumplió $6\text{ h}$.
+* `PATCH /api/v1/orders/{order_id}/status`: Hitos físicos: arribo, recogida (sellado de tiempo en mostrador $t\sb{\text{mostrador}}$) y entrega final con logout forzado si cumplió $6\text{ h}$.
 * `POST /api/v1/couriers/{courier_id}/logout`: Cierre formal de turno voluntario o forzado.
 
 ### ⚙️ Configuración y DevOps
 
 * `GET /api/v1/config/`: Consulta de parámetros operativos vigentes.
-* `PUT /api/v1/config/`: **Control Dinámico en Tiempo Real:** Permite alternar la política activa (`greedy` vs `synchronized`), ajustar el buffer $\Delta t_{\text{buffer}} \in [0, 5]\text{ min}$ y flexibilizar límites temporales para tests rápidos sin reiniciar contenedores.
+* `PUT /api/v1/config/`: **Control Dinámico en Tiempo Real:** Permite alternar la política activa (`greedy` vs `synchronized`), ajustar el buffer $\Delta t\sb{\text{buffer}} \in [0, 5]\text{ min}$ y flexibilizar límites temporales para tests rápidos sin reiniciar contenedores.
 * `GET /api/v1/telemetry/health`: Diagnóstico continuo de CPU (`psutil`), RAM, estado de la conexión a PostgreSQL y latencia promedio.
 
 ---
@@ -189,7 +189,7 @@ timestamp,method,path,status_code,latency_ms,cpu_percent,memory_mb
 2026-10-02T17:00:01.654321+00:00,GET,/api/v1/orders/1/tracking,200,3.12,9.1,43.10
 ```
 
-Este registro permite validar el KPI de latencia de backend ($T_{\text{lat-api-p99}} \le 180\text{ ms}$) y provee el insumo empírico para el análisis del Integrante 3.
+Este registro permite validar el KPI de latencia de backend ($T\sb{\text{lat-api-p99}} \le 180\text{ ms}$) y provee el insumo empírico para el análisis del Integrante 3.
 
 ---
 
@@ -199,9 +199,9 @@ La API cuenta con una suite integral de **34 pruebas automatizadas** que validan
 
 * **¿Qué se prueba?:**
 
-  * **Caminos Positivos (Happy Paths):** Flujo completo de pedidos (*End-to-End*), asignación y despacho sincronizado, cálculo de tarifas con bono de mostrador urgente ($+20\%$), contención culinaria en fogones libres, pings de telemetría GPS, inicio/cierre de turnos y diagnóstico de salud.
+  * **Caminos Positivos (Happy Paths):** Flujo completo de pedidos (*End-to-End*), asignación y despacho sincronizado, cálculo de tarifas con bono de mostrador urgente ($+20$\%), contención culinaria en fogones libres, pings de telemetría GPS, inicio/cierre de turnos y diagnóstico de salud.
   * **Caminos Negativos y Excepciones:** Rechazo de coordenadas fuera de cuadrante metropolitano $[0.0, 6.0]\text{ km}$ (`422`), restaurantes inválidos (`422`), órdenes o repartidores inexistentes (`404`), cancelaciones prohibidas de pedidos ya entregados (`400`), bloqueo atómico con `409 Conflict` ante carreras de doble aceptación (`SELECT FOR UPDATE`), y rechazo de repartidores no autorizados para transicionar estados (`403`).
-  * **Reglas de Negocio Críticas (Decisiones D-01 a D-11):** Protocolo Anti-Limbo en mostrador a los $20\text{ min}$ ($t_{\text{mostrador}} \ge 20\text{ min}$, **D-07**), exclusión preventiva de ofertas con batería $< 15\%$ y auto-logout tras entrega (**D-08**), promoción FIFO culinaria automática (**D-09**), pantalla KDS sin recetas ni ingredientes (**D-11 Excl-2**) y sinuosidad vial $\tau = 1.25$ a $18\text{ km/h}$ (**D-11 Excl-4**).
+  * **Reglas de Negocio Críticas (Decisiones D-01 a D-11):** Protocolo Anti-Limbo en mostrador a los $20\text{ min}$ ($t\sb{\text{mostrador}} \ge 20\text{ min}$, **D-07**), exclusión preventiva de ofertas con batería $< 15$\% y auto-logout tras entrega (**D-08**), promoción FIFO culinaria automática (**D-09**), pantalla KDS sin recetas ni ingredientes (**D-11 Excl-2**) y sinuosidad vial $\tau = 1.25$ a $18\text{ km/h}$ (**D-11 Excl-4**).
 * **Comandos de Ejecución:**
 
   ```bash
@@ -226,9 +226,9 @@ La API cuenta con una suite integral de **34 pruebas automatizadas** que validan
 El proyecto cuenta con un Centro de Operaciones interactivo construido en **NiceGUI** montado sobre WebSockets nativos, lo que garantiza actualizaciones continuas (cada $1.0\text{ s}$) de métricas y posiciones en el mapa **sin parpadeos ni recargas de página**:
 
 * **Página 1: Mapa & Operaciones (`/`):**
-  * **Plano Cartesiano 2D ($[0.00, 6.00]\text{ km}$):** Visualización interactiva en SVG con cuadrícula urbana, $10$ restaurantes (🏪 verdes), clientes (👤 ámbar) y repartidores (🛵 cyan/magenta).
+  * **Plano Cartesiano 2D ($[0.00, 6.00]\text{ km}$):** Visualización interactiva en SVG con cuadrícula urbana, 10 restaurantes (🏪 verdes), clientes (👤 ámbar) y repartidores (🛵 cyan/magenta).
   * **Leyenda Interactiva con Filtros Booleanos:** Permite pulsar sobre cualquier ítem de la leyenda (`Restaurantes`, `Clientes`, `Couriers Libres`, `Couriers en Ruta`, `Punto de Clic`) para conmutar su visibilidad en el plano, con botones de acceso rápido "Todos" y "Ninguno".
-  * **Ajuste Dinámico de Transparencias:** Al seleccionar cualquier orden en progreso, los elementos ajenos se atenúan al $15\%$ de opacidad (\texttt{opacity: 0.15}) y se resaltan al $100\%$ el restaurante emisor, el cliente receptor, el repartidor asignado y la trayectoria/vector de ruta.
+  * **Ajuste Dinámico de Transparencias:** Al seleccionar cualquier orden en progreso, los elementos ajenos se atenúan al 15% de opacidad (`opacity: 0.15`) y se resaltan al 100% el restaurante emisor, el cliente receptor, el repartidor asignado y la trayectoria/vector de ruta.
   * **Creación de Pedidos:** Permite crear comandas seleccionando local y haciendo clic directamente sobre el mapa para fijar $(X, Y)$ en $\text{km}$ sin notificaciones intrusivas.
   * **Control del Ciclo de Vida y Piloto Automático:** Botones para simular el avance de la comanda (Pase a Mostrador `POST /ready`, Asignación atómica `POST /accept`, Recogida `PATCH /status` y Entrega final `ENTREGADO`) o activar el modo piloto automático para ver la cinemática en vivo segundo a segundo.
 
@@ -236,7 +236,7 @@ El proyecto cuenta con un Centro de Operaciones interactivo construido en **Nice
   * **Métricas Operativas:** Tarjetas con repartidores conectados (libres vs en ruta) y pedidos del día.
   * **Gráfico de Torta (Pie Chart):** Componente interactivo `ui.echart` con la distribución en tiempo real de pedidos en curso, completados y cancelados.
   * **Telemetría de Hardware:** Lectura continua de CPU (%) y RAM (MB) del host vía `psutil`.
-  * **Configuración en Caliente (`/api/v1/config/`):** Editor interactivo para conmutar la política de asignación (`synchronized` vs `greedy`), margen de holgura $\Delta t_{\text{buffer}}$, límites de turno y umbrales de batería.
+  * **Configuración en Caliente (`/api/v1/config/`):** Editor interactivo para conmutar la política de asignación (`synchronized` vs `greedy`), margen de holgura $\Delta t\sb{\text{buffer}}$, límites de turno y umbrales de batería.
 
 > 📖 **Documentación Técnica:** Para conocer los detalles de diseño, arquitectura modular y resolución de incidentes del Centro de Control, consulta la [Documentación del Dashboard de Operaciones](docs/Dashboard_Centro_Operaciones.md).
 
@@ -312,31 +312,27 @@ Modelos - PA/
 │   ├── mmc_contrast_results.json      # Resultados de 30 réplicas SimPy vs M/M/c analítico (7 franjas)
 │   └── sensibilidad_buffer_results.json # Salidas del barrido de sensibilidad de delta_t_buffer (0..5 min)
 ├── docs/                              # Documentación técnica, académica y formal del proyecto
-│   ├── INFORME_FINAL.md               # Informe Final Unificado oficial (6 secciones obligatorias)
-│   ├── Planteamiento_Proyecto.md      # Documento maestro consolidado de Entrega 1 (Markdown)
-│   ├── Guia_Preparacion_Entrega_Final.md # Guía metodológica y checklist de la entrega final
-│   ├── Catalogo_Variables_Sistema.md  # Glosario y catálogo de variables de estado y parámetros
-│   ├── Auditoria.md                   # Bitácora técnica, criterios C1-C7 y resoluciones D-01 a D-11
-│   ├── Dashboard_Centro_Operaciones.md # Especificación del dashboard interactivo y gemelo digital
-│   ├── Documentacion_Pruebas_Unitarias_y_API.md # Matriz y catálogo de pruebas unitarias y API
-│   ├── Fuentes.md                     # Compendio de 9 fuentes bibliográficas verificadas (APA 7.ª ed.)
-│   ├── DOCUMENTO_MAESTRO_PROYECTO.tex # Documento maestro formal en LaTeX
-│   ├── DOCUMENTO_MAESTRO_PROYECTO.pdf # Documento maestro compilado en PDF
-│   ├── PA_E1_Planteamiento_QuickDeliverySim.tex # Documento maestro en LaTeX de la Entrega 1
-│   ├── PA_E1_Planteamiento_QuickDeliverySim.pdf # Documento PDF de la Entrega 1
-│   ├── Subsanacion_Retroalimentacion_E1.tex     # Memorando formal de subsanación de retroalimentación
-│   ├── Subsanacion_Retroalimentacion_E1.pdf     # Memorando PDF de subsanación
-│   └── figuras/                       # Gráficas científicas y diagramas generados (fig_01 a fig_08)
-│       ├── fig_01_tiempo_mostrador.png
-│       ├── fig_02_espera_ociosa.png
-│       ├── fig_03_evolucion_colas.png
-│       ├── fig_04_sensibilidad_buffer.png
-│       ├── fig_05_dashboard_operaciones.png
-│       ├── fig_06_dashboard_metricas.png
-│       ├── fig_07_diagrama_api_endpoints.png
-│       └── fig_08_ciclo_vida_producto.png
-└── scratch/                           # Scripts auxiliares y bases de datos efímeras
-    ├── test_api.db                    # SQLite efímera para pruebas de API
-    ├── test_orders.db                 # SQLite efímera para pruebas de órdenes
-    └── scripts/                       # Scripts auxiliares para generar figuras y capturas
+    ├── INFORME_FINAL.md               # Informe Final Unificado oficial (6 secciones obligatorias)
+    ├── Planteamiento_Proyecto.md      # Documento maestro consolidado de Entrega 1 (Markdown)
+    ├── Guia_Preparacion_Entrega_Final.md # Guía metodológica y checklist de la entrega final
+    ├── Catalogo_Variables_Sistema.md  # Glosario y catálogo de variables de estado y parámetros
+    ├── Auditoria.md                   # Bitácora técnica, criterios C1-C7 y resoluciones D-01 a D-11
+    ├── Dashboard_Centro_Operaciones.md # Especificación del dashboard interactivo y gemelo digital
+    ├── Documentacion_Pruebas_Unitarias_y_API.md # Matriz y catálogo de pruebas unitarias y API
+    ├── Fuentes.md                     # Compendio de 9 fuentes bibliográficas verificadas (APA 7.ª ed.)
+    ├── DOCUMENTO_MAESTRO_PROYECTO.tex # Documento maestro formal en LaTeX
+    ├── DOCUMENTO_MAESTRO_PROYECTO.pdf # Documento maestro compilado en PDF
+    ├── PA_E1_Planteamiento_QuickDeliverySim.tex # Documento maestro en LaTeX de la Entrega 1
+    ├── PA_E1_Planteamiento_QuickDeliverySim.pdf # Documento PDF de la Entrega 1
+    ├── Subsanacion_Retroalimentacion_E1.tex     # Memorando formal de subsanación de retroalimentación
+    ├── Subsanacion_Retroalimentacion_E1.pdf     # Memorando PDF de subsanación
+    └── figuras/                       # Gráficas científicas y diagramas generados (fig_01 a fig_08)
+        ├── fig_01_tiempo_mostrador.png
+        ├── fig_02_espera_ociosa.png
+        ├── fig_03_evolucion_colas.png
+        ├── fig_04_sensibilidad_buffer.png
+        ├── fig_05_dashboard_operaciones.png
+        ├── fig_06_dashboard_metricas.png
+        ├── fig_07_diagrama_api_endpoints.png
+        └── fig_08_ciclo_vida_producto.png
 ```
