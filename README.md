@@ -1,8 +1,10 @@
 # QuickDelivery Sim — Gemelo Digital y Simulación Estocástica
 
-## Proyecto de Aula: Entrega Parcial 1
+## Proyecto de Aula: Entrega Final Unificada (Grupo 2)
 
 ### Plataforma de Pedidos a Domicilio con Despacho Sincronizado y Retención de Flota Abierta en 24 Horas
+
+> 📄 **Informe Final Oficial:** Consulta el documento consolidado de la entrega final en [`docs/INFORME_FINAL.md`](docs/INFORME_FINAL.md).
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg?style=flat&logo=FastAPI&logoColor=white)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15_Alpine-336791.svg?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -50,21 +52,21 @@ El sistema real desacoplado opera en **tiempo de reloj real (*wall-clock time*)*
 
 ---
 
-## 3. Despliegue con un Solo Comando (Criterio R8)
+## 3. Despliegue de la API y Ejecución de SimPy con un Solo Comando (Sección 4.1 Rúbrica)
 
 ### Prerrequisitos:
 
-* **Docker Desktop** (con Docker Compose v2+) instalado y corriendo en Windows, Linux o macOS.
+* **Docker Desktop** (con Docker Compose v2+) y **Python 3.11+** instalados en Windows, Linux o macOS.
 
-### Comando Único de Despliegue:
+### 3.1 Comando Único para Levantar el Contenedor de la API y PostgreSQL 15:
 
-Para construir las imágenes, inicializar PostgreSQL 15, ejecutar las migraciones, sembrar la base de datos (10 restaurantes y 47 fogones) y levantar la API con telemetría activa:
+Para construir las imágenes, inicializar PostgreSQL 15, sembrar la base de datos (10 restaurantes con 47 fogones y flota inicial) y levantar la API REST con captura activa de telemetría (`datos/telemetry_log.csv`):
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
-Una vez levantado, la API estará disponible y lista para responder peticiones en:
+Una vez levantado, la API estará disponible en:
 
 * **Documentación Interactiva Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
 * **Documentación ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
@@ -74,6 +76,27 @@ Para detener los contenedores:
 
 ```bash
 docker compose down
+```
+
+### 3.2 Comando Único para Ejecutar los Experimentos de SimPy y Reproducir las Tablas de `docs/INFORME_FINAL.md`:
+
+Para ejecutar las $R = 30$ réplicas estocásticas independientes de 24 horas (semillas `42..71`) comparando la **Política Voraz (`greedy`)** vs. la **Política Sincronizada (`synchronized`)** con intervalos de confianza al 95% ($t$-Student) y exportar los resultados a `datos/simulation_results.json`:
+
+```bash
+python simulacion/main.py
+```
+
+Comandos adicionales para reproducir los contrastes analíticos y de sensibilidad de `docs/INFORME_FINAL.md`:
+
+```bash
+# Ejecutar contraste analítico M/M/c vs. SimPy markoviano (30 réplicas por franja)
+python analisis/contrast_analysis.py
+
+# Ejecutar barrido de sensibilidad de delta_t_buffer [0..5 min] (Pregunta de Decisión 4)
+python analisis/sensibilidad_buffer.py
+
+# Regenerar las figuras científicas en docs/figuras/
+python analisis/generador_figuras.py
 ```
 
 ---
@@ -251,18 +274,31 @@ Modelos - PA/
 │       ├── config.py              # Configuración dinámica en caliente (/config/)
 │       ├── dispatch.py            # Motor de despacho, cinemática vial tau=1.25 y FIFO
 │       └── telemetry.py           # Middleware de telemetría de latencias y CPU/RAM
-├── simulacion/                    # Motor de Simulación DES (SimPy v0 24h)
-├── analisis/                      # Contrastes analíticos M/M/c y Ley de Little
-├── datos/                         # Persistencia de telemetría y resultados de simulación
-│   ├── simulation_results.json    # Métricas y KPIs de la simulación SimPy 24h
-│   └── mmc_contrast_results.json  # Resultados de 30 réplicas SimPy vs M/M/c analítico (Tabla 5)
-└── docs/                          # Documentación del proyecto de aula
+├── simulacion/                    # Motor de Simulación DES (SimPy 24h y réplica M/M/c)
+│   ├── main.py                    # Entrypoint CLI (30 réplicas con IC 95% t-Student)
+│   ├── simpy_engine.py            # Motor de eventos discretos 24h y réplica markoviana
+│   ├── entities.py                # Entidades Order, Courier, KitchenNetwork (47 fogones) y CourierPool
+│   ├── policies.py                # Patrón Strategy: GreedyImmediatePolicy vs PredictiveSynchronizedPolicy
+│   └── metrics.py                 # Colector y agregador de KPIs estocásticos
+├── analisis/                      # Contrastes analíticos M/M/c, Ley de Little y visualización
+│   ├── queueing_theory.py         # Ecuaciones cerradas de Erlang-C y Ley de Little
+│   ├── contrast_analysis.py       # Contraste de 30 réplicas M/M/c vs SimPy con IC 95%
+│   ├── sensibilidad_buffer.py     # Barrido paramétrico de delta_t_buffer (Pregunta de Decisión 4)
+│   ├── generador_figuras.py       # Generador de gráficas científicas con bandas de IC y SLA
+│   └── test_contrast.ipynb        # Notebook interactivo de validación estadística
+├── datos/                         # Persistencia de telemetría real y resultados de simulación
+│   ├── telemetry_log.csv          # Telemetría real capturada en los endpoints de la API (n=710)
+│   ├── simulation_results.json    # Salidas reales de 30 réplicas SimPy 24h (Voraz vs Sincronizada)
+│   ├── mmc_contrast_results.json  # Resultados de 30 réplicas SimPy vs M/M/c analítico (7 franjas)
+│   └── sensibilidad_buffer_results.json # Salidas del barrido de sensibilidad de delta_t_buffer (0..5 min)
+└── docs/                          # Documentación técnica del proyecto de aula
+    ├── INFORME_FINAL.md           # Informe Final Unificado oficial (6 secciones obligatorias)
+    ├── figuras/                   # Gráficas generadas por la simulación (fig_01 a fig_03)
     ├── Planteamiento_Proyecto.md  # Documento maestro consolidado de Entrega 1 (Markdown)
     ├── PA_E1_Planteamiento_QuickDeliverySim.tex # Documento maestro en LaTeX
     ├── Subsanacion_Retroalimentacion_E1.tex     # Memorando formal de subsanación de retroalimentación
     ├── Fuentes.md                 # Compendio de 9 fuentes bibliográficas verificadas (APA 7.ª ed.)
     ├── Auditoria.md               # Bitácora técnica, criterios C1-C7 y resoluciones D-01 a D-11
     ├── Dashboard_Centro_Operaciones.md # Especificación del dashboard interactivo y gemelo digital
-    ├── Documentacion_Pruebas_Unitarias_y_API.md # Matriz y catálogo de pruebas unitarias y API
-    └── Proyecto de Aula - Entrega Parcial 1 Planteamiento del Proyecto.pdf # Guía oficial docente
+    └── Documentacion_Pruebas_Unitarias_y_API.md # Matriz y catálogo de pruebas unitarias y API
 ```

@@ -1,0 +1,362 @@
+{
+    "metadata": {
+        "descripcion": "Barrido param\u00e9trico de sensibilidad de delta_t_buffer para Despacho Sincronizado",
+        "pregunta_decision": "Pregunta 4: Margen de Holgura Cocina-Despacho",
+        "replicas_por_buffer": 10,
+        "seed_base": 42,
+        "valores_buffer_evaluados": [
+            0.0,
+            1.0,
+            2.0,
+            2.5,
+            3.0,
+            4.0,
+            5.0
+        ]
+    },
+    "resultados": {
+        "0.0": {
+            "buffer_min": 0.0,
+            "T_espera_rest_avg_min": {
+                "media": 0.23,
+                "desv_std": 0.03,
+                "ic_95": [
+                    0.21,
+                    0.25
+                ],
+                "ic_semiamplitud": 0.02
+            },
+            "T_mostrador_p95_min": {
+                "media": 9.86,
+                "desv_std": 1.05,
+                "ic_95": [
+                    9.1,
+                    10.61
+                ],
+                "ic_semiamplitud": 0.75
+            },
+            "W_total_p95_min": {
+                "media": 62.03,
+                "desv_std": 1.63,
+                "ic_95": [
+                    60.86,
+                    63.19
+                ],
+                "ic_semiamplitud": 1.16
+            },
+            "P_canc_porcentaje": {
+                "media": 24.9,
+                "desv_std": 1.64,
+                "ic_95": [
+                    23.73,
+                    26.07
+                ],
+                "ic_semiamplitud": 1.17
+            },
+            "Rho_rep_avg_porcentaje": {
+                "media": 56.14,
+                "desv_std": 3.37,
+                "ic_95": [
+                    53.73,
+                    58.55
+                ],
+                "ic_semiamplitud": 2.41
+            },
+            "entregas_promedio": 1411.8
+        },
+        "1.0": {
+            "buffer_min": 1.0,
+            "T_espera_rest_avg_min": {
+                "media": 0.36,
+                "desv_std": 0.03,
+                "ic_95": [
+                    0.34,
+                    0.38
+                ],
+                "ic_semiamplitud": 0.02
+            },
+            "T_mostrador_p95_min": {
+                "media": 9.73,
+                "desv_std": 0.71,
+                "ic_95": [
+                    9.23,
+                    10.24
+                ],
+                "ic_semiamplitud": 0.51
+            },
+            "W_total_p95_min": {
+                "media": 61.86,
+                "desv_std": 1.89,
+                "ic_95": [
+                    60.51,
+                    63.21
+                ],
+                "ic_semiamplitud": 1.35
+            },
+            "P_canc_porcentaje": {
+                "media": 24.33,
+                "desv_std": 2.13,
+                "ic_95": [
+                    22.8,
+                    25.85
+                ],
+                "ic_semiamplitud": 1.53
+            },
+            "Rho_rep_avg_porcentaje": {
+                "media": 59.2,
+                "desv_std": 3.32,
+                "ic_95": [
+                    56.83,
+                    61.58
+                ],
+                "ic_semiamplitud": 2.37
+            },
+            "entregas_promedio": 1422.0
+        },
+        "2.0": {
+            "buffer_min": 2.0,
+            "T_espera_rest_avg_min": {
+                "media": 0.43,
+                "desv_std": 0.03,
+                "ic_95": [
+                    0.41,
+                    0.46
+                ],
+                "ic_semiamplitud": 0.02
+            },
+            "T_mostrador_p95_min": {
+                "media": 9.24,
+                "desv_std": 1.04,
+                "ic_95": [
+                    8.5,
+                    9.99
+                ],
+                "ic_semiamplitud": 0.74
+            },
+            "W_total_p95_min": {
+                "media": 61.21,
+                "desv_std": 1.42,
+                "ic_95": [
+                    60.19,
+                    62.23
+                ],
+                "ic_semiamplitud": 1.02
+            },
+            "P_canc_porcentaje": {
+                "media": 24.43,
+                "desv_std": 2.74,
+                "ic_95": [
+                    22.48,
+                    26.39
+                ],
+                "ic_semiamplitud": 1.96
+            },
+            "Rho_rep_avg_porcentaje": {
+                "media": 58.51,
+                "desv_std": 2.53,
+                "ic_95": [
+                    56.7,
+                    60.32
+                ],
+                "ic_semiamplitud": 1.81
+            },
+            "entregas_promedio": 1426.4
+        },
+        "2.5": {
+            "buffer_min": 2.5,
+            "T_espera_rest_avg_min": {
+                "media": 0.48,
+                "desv_std": 0.04,
+                "ic_95": [
+                    0.45,
+                    0.51
+                ],
+                "ic_semiamplitud": 0.03
+            },
+            "T_mostrador_p95_min": {
+                "media": 8.92,
+                "desv_std": 1.1,
+                "ic_95": [
+                    8.13,
+                    9.71
+                ],
+                "ic_semiamplitud": 0.79
+            },
+            "W_total_p95_min": {
+                "media": 60.85,
+                "desv_std": 1.84,
+                "ic_95": [
+                    59.53,
+                    62.17
+                ],
+                "ic_semiamplitud": 1.32
+            },
+            "P_canc_porcentaje": {
+                "media": 23.41,
+                "desv_std": 2.26,
+                "ic_95": [
+                    21.79,
+                    25.03
+                ],
+                "ic_semiamplitud": 1.62
+            },
+            "Rho_rep_avg_porcentaje": {
+                "media": 60.59,
+                "desv_std": 2.5,
+                "ic_95": [
+                    58.8,
+                    62.38
+                ],
+                "ic_semiamplitud": 1.79
+            },
+            "entregas_promedio": 1445.3
+        },
+        "3.0": {
+            "buffer_min": 3.0,
+            "T_espera_rest_avg_min": {
+                "media": 0.5,
+                "desv_std": 0.04,
+                "ic_95": [
+                    0.48,
+                    0.53
+                ],
+                "ic_semiamplitud": 0.03
+            },
+            "T_mostrador_p95_min": {
+                "media": 9.44,
+                "desv_std": 1.43,
+                "ic_95": [
+                    8.42,
+                    10.47
+                ],
+                "ic_semiamplitud": 1.02
+            },
+            "W_total_p95_min": {
+                "media": 60.88,
+                "desv_std": 1.6,
+                "ic_95": [
+                    59.74,
+                    62.02
+                ],
+                "ic_semiamplitud": 1.14
+            },
+            "P_canc_porcentaje": {
+                "media": 23.26,
+                "desv_std": 2.1,
+                "ic_95": [
+                    21.76,
+                    24.76
+                ],
+                "ic_semiamplitud": 1.5
+            },
+            "Rho_rep_avg_porcentaje": {
+                "media": 61.61,
+                "desv_std": 3.0,
+                "ic_95": [
+                    59.46,
+                    63.76
+                ],
+                "ic_semiamplitud": 2.15
+            },
+            "entregas_promedio": 1432.8
+        },
+        "4.0": {
+            "buffer_min": 4.0,
+            "T_espera_rest_avg_min": {
+                "media": 0.58,
+                "desv_std": 0.03,
+                "ic_95": [
+                    0.56,
+                    0.61
+                ],
+                "ic_semiamplitud": 0.02
+            },
+            "T_mostrador_p95_min": {
+                "media": 9.06,
+                "desv_std": 1.11,
+                "ic_95": [
+                    8.27,
+                    9.86
+                ],
+                "ic_semiamplitud": 0.8
+            },
+            "W_total_p95_min": {
+                "media": 61.51,
+                "desv_std": 1.56,
+                "ic_95": [
+                    60.4,
+                    62.63
+                ],
+                "ic_semiamplitud": 1.12
+            },
+            "P_canc_porcentaje": {
+                "media": 23.32,
+                "desv_std": 2.42,
+                "ic_95": [
+                    21.59,
+                    25.05
+                ],
+                "ic_semiamplitud": 1.73
+            },
+            "Rho_rep_avg_porcentaje": {
+                "media": 62.69,
+                "desv_std": 1.34,
+                "ic_95": [
+                    61.73,
+                    63.65
+                ],
+                "ic_semiamplitud": 0.96
+            },
+            "entregas_promedio": 1429.3
+        },
+        "5.0": {
+            "buffer_min": 5.0,
+            "T_espera_rest_avg_min": {
+                "media": 0.66,
+                "desv_std": 0.05,
+                "ic_95": [
+                    0.62,
+                    0.69
+                ],
+                "ic_semiamplitud": 0.03
+            },
+            "T_mostrador_p95_min": {
+                "media": 9.22,
+                "desv_std": 1.15,
+                "ic_95": [
+                    8.4,
+                    10.05
+                ],
+                "ic_semiamplitud": 0.82
+            },
+            "W_total_p95_min": {
+                "media": 61.3,
+                "desv_std": 2.68,
+                "ic_95": [
+                    59.38,
+                    63.22
+                ],
+                "ic_semiamplitud": 1.92
+            },
+            "P_canc_porcentaje": {
+                "media": 23.18,
+                "desv_std": 3.1,
+                "ic_95": [
+                    20.97,
+                    25.39
+                ],
+                "ic_semiamplitud": 2.21
+            },
+            "Rho_rep_avg_porcentaje": {
+                "media": 65.52,
+                "desv_std": 1.91,
+                "ic_95": [
+                    64.15,
+                    66.89
+                ],
+                "ic_semiamplitud": 1.37
+            },
+            "entregas_promedio": 1439.5
+        }
+    }
+}

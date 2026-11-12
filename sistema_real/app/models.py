@@ -8,6 +8,13 @@ def utcnow():
     return datetime.now(timezone.utc)
 
 
+def ensure_utc(dt: datetime) -> datetime:
+    """Garantiza que una marca temporal tenga zona horaria UTC tanto en PostgreSQL como en SQLite."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 class RestaurantModel(Base):
     __tablename__ = "restaurants"
 

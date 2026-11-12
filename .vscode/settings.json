@@ -1,0 +1,81 @@
+{
+  "latex-workshop.latex.env": {
+    "Path": "C:\\Users\\juan6\\OneDrive\\Escritorio\\Temp\\Modelos - PA\\.venv\\TinyTeX\\bin\\windows;${env:Path}",
+    "PATH": "C:\\Users\\juan6\\OneDrive\\Escritorio\\Temp\\Modelos - PA\\.venv\\TinyTeX\\bin\\windows;${env:PATH}"
+  },
+  "latex-workshop.latex.tools": [
+    {
+      "name": "pdflatex",
+      "command": "C:\\Users\\juan6\\OneDrive\\Escritorio\\Temp\\Modelos - PA\\.venv\\TinyTeX\\bin\\windows\\pdflatex.exe",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-output-directory=%OUTDIR%",
+        "%DOC%"
+      ]
+    },
+    {
+      "name": "latexmk",
+      "command": "C:\\Users\\juan6\\OneDrive\\Escritorio\\Temp\\Modelos - PA\\.venv\\TinyTeX\\bin\\windows\\latexmk.exe",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-pdf",
+        "-outdir=%OUTDIR%",
+        "%DOC%"
+      ]
+    },
+    {
+      "name": "xelatex",
+      "command": "C:\\Users\\juan6\\OneDrive\\Escritorio\\Temp\\Modelos - PA\\.venv\\TinyTeX\\bin\\windows\\xelatex.exe",
+      "args": [
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "-output-directory=%OUTDIR%",
+        "%DOC%"
+      ]
+    },
+    {
+      "name": "bibtex",
+      "command": "C:\\Users\\juan6\\OneDrive\\Escritorio\\Temp\\Modelos - PA\\.venv\\TinyTeX\\bin\\windows\\bibtex.exe",
+      "args": [
+        "%DOCFILE%"
+      ]
+    }
+  ],
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "pdflatex ➞ pdflatex (Recomendado)",
+      "tools": [
+        "pdflatex",
+        "pdflatex"
+      ]
+    },
+    {
+      "name": "latexmk 🔃",
+      "tools": [
+        "latexmk"
+      ]
+    },
+    {
+      "name": "pdflatex ➞ bibtex ➞ pdflatex × 2",
+      "tools": [
+        "pdflatex",
+        "bibtex",
+        "pdflatex",
+        "pdflatex"
+      ]
+    },
+    {
+      "name": "xelatex",
+      "tools": [
+        "xelatex"
+      ]
+    }
+  ],
+  "latex-workshop.view.pdf.viewer": "tab",
+  "latex-workshop.latex.autoBuild.run": "onSave"
+}
